@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Database, FileSpreadsheet, Globe, CheckCircle, XCircle, Download, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { testNeonConnection } from '../../lib/neon';
 
 type DataSource = {
   id: string;
@@ -14,12 +15,12 @@ type DataSource = {
 export default function DataConnectionPage() {
   const [dataSources, setDataSources] = useState<DataSource[]>([
     {
-      id: '1',
-      name: 'MySQL Production DB',
+      id: 'env-neon',
+      name: 'Neon Database (ENV)',
       type: 'mysql',
-      status: 'connected',
-      lastSync: '2026-05-06 10:30',
-      records: 12845,
+      status: 'disconnected',
+      lastSync: 'Menunggu koneksi...',
+      records: 0,
     },
     {
       id: '2',
@@ -48,7 +49,74 @@ export default function DataConnectionPage() {
   const [newSourceEndpoint, setNewSourceEndpoint] = useState('');
   const [exportFormat, setExportFormat] = useState<'pdf' | 'excel' | 'csv'>('pdf');
 
-  const handleConnect = (id: string) => {
+  useEffect(() => {
+    let active = true;
+
+    const verifyConnection = async () => {
+      try {
+        const result = await testNeonConnection();
+        if (!active) return;
+
+        setDataSources((prev) =>
+          prev.map((source) =>
+            source.id === 'env-neon'
+              ? {
+                  ...source,
+                  status: 'connected',
+                  lastSync: `Connected at ${new Date(result.now_at).toLocaleString('id-ID')}`,
+                  records: 1,
+                }
+              : source
+          )
+        );
+        toast.success(`Database ENV terhubung: ${result.database_name}`);
+      } catch (error) {
+        if (!active) return;
+        setDataSources((prev) =>
+          prev.map((source) =>
+            source.id === 'env-neon'
+              ? { ...source, status: 'error', lastSync: 'Koneksi gagal' }
+              : source
+          )
+        );
+        toast.error('Gagal menghubungkan database dari env.');
+      }
+    };
+
+    verifyConnection();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleConnect = async (id: string) => {
+    if (id === 'env-neon') {
+      try {
+        const result = await testNeonConnection();
+        setDataSources((prev) =>
+          prev.map((source) =>
+            source.id === id
+              ? {
+                  ...source,
+                  status: 'connected',
+                  lastSync: `Connected at ${new Date(result.now_at).toLocaleString('id-ID')}`,
+                  records: 1,
+                }
+              : source
+          )
+        );
+        toast.success(`Koneksi sukses ke ${result.database_name}.`);
+      } catch (error) {
+        setDataSources((prev) =>
+          prev.map((source) =>
+            source.id === id ? { ...source, status: 'error', lastSync: 'Koneksi gagal' } : source
+          )
+        );
+        toast.error('Gagal menghubungkan database dari env.');
+      }
+      return;
+    }
     setDataSources(
       dataSources.map((source) =>
         source.id === id
@@ -60,6 +128,13 @@ export default function DataConnectionPage() {
   };
 
   const handleDisconnect = (id: string) => {
+    if (id === 'env-neon') {
+      setDataSources((prev) =>
+        prev.map((source) => (source.id === id ? { ...source, status: 'disconnected', lastSync: 'Terputus dari ENV' } : source))
+      );
+      toast.info('Koneksi ENV diputus.');
+      return;
+    }
     setDataSources(
       dataSources.map((source) =>
         source.id === id ? { ...source, status: 'disconnected' } : source
@@ -68,7 +143,27 @@ export default function DataConnectionPage() {
     toast.info('Koneksi diputus.');
   };
 
-  const handleSync = (id: string) => {
+  const handleSync = async (id: string) => {
+    if (id === 'env-neon') {
+      try {
+        const result = await testNeonConnection();
+        setDataSources((prev) =>
+          prev.map((source) =>
+            source.id === id
+              ? {
+                  ...source,
+                  lastSync: `Synced at ${new Date(result.now_at).toLocaleString('id-ID')}`,
+                  records: (source.records || 0) + 1,
+                }
+              : source
+          )
+        );
+        toast.success('Sinkronisasi dari Neon ENV selesai.');
+      } catch (error) {
+        toast.error('Sinkronisasi gagal: database ENV tidak tersedia.');
+      }
+      return;
+    }
     setDataSources(
       dataSources.map((source) =>
         source.id === id
@@ -79,7 +174,31 @@ export default function DataConnectionPage() {
     toast.success('Sinkronisasi data selesai.');
   };
 
-  const handleRefreshAll = () => {
+  const handleRefreshAll = async () => {
+    try {
+      const result = await testNeonConnection();
+      setDataSources((prev) =>
+        prev.map((source) =>
+          source.id === 'env-neon'
+            ? {
+                ...source,
+                status: 'connected',
+                lastSync: `Refreshed at ${new Date(result.now_at).toLocaleString('id-ID')}`,
+                records: (source.records || 0) + 1,
+              }
+            : source
+        )
+      );
+      toast.success('Koneksi ENV berhasil disegarkan.');
+      return;
+    } catch (error) {
+      setDataSources((prev) =>
+        prev.map((source) =>
+          source.id === 'env-neon' ? { ...source, status: 'error', lastSync: 'Refresh gagal' } : source
+        )
+      );
+      toast.error('Refresh gagal: database ENV tidak tersedia.');
+    }
     setDataSources((prev) =>
       prev.map((source) =>
         source.status === 'connected'
