@@ -6,10 +6,25 @@ import { toast } from 'sonner';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'Admin' | 'Pemimpin'>('Admin');
   const navigate = useNavigate();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const credentials: Record<'Admin' | 'Pemimpin', { email: string; password: string; name: string }> = {
+      Admin: { email: 'admin@ptabb.id', password: 'admin123', name: 'Admin User' },
+      Pemimpin: { email: 'pemimpin@ptabb.id', password: 'pemimpin123', name: 'Pemimpin' },
+    };
+
+    const currentUser = credentials[role];
+    if (email.trim().toLowerCase() !== currentUser.email || password !== currentUser.password) {
+      toast.error('Email atau password tidak cocok untuk peran yang dipilih.');
+      return;
+    }
+
+    window.localStorage.setItem('abb-role', role);
+    window.localStorage.setItem('abb-user', currentUser.name);
     toast.success('Login berhasil. Mengalihkan ke dashboard...');
     navigate('/dashboard');
   };
@@ -65,6 +80,21 @@ export default function LoginPage() {
                   required
                 />
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+                Peran Pengguna
+              </label>
+              <select
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as 'Admin' | 'Pemimpin')}
+                className="w-full rounded-lg border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Admin">Admin</option>
+                <option value="Pemimpin">Pemimpin</option>
+              </select>
             </div>
 
             <button

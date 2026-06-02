@@ -9,46 +9,70 @@ export default function DashboardLayout() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [userRole, setUserRole] = useState<'Admin' | 'Pemimpin'>('Admin');
   const [profile, setProfile] = useState({
     name: 'Admin User',
     role: 'Administrator',
     email: 'admin@ptabb.id',
   });
 
-  const menuItems = [
+  const adminMenu = [
     { icon: Home, label: 'Beranda', path: '/dashboard' },
+    { icon: TrendingUp, label: 'Kelola Data Transaksi', path: '/dashboard/penjualan' },
     { icon: Truck, label: 'Data Armada', path: '/dashboard/armada' },
     { icon: Users, label: 'Driver', path: '/dashboard/driver' },
   ];
 
-  const analysisItems = [
-    { icon: TrendingUp, label: 'Penjualan', path: '/dashboard/penjualan' },
+  const pemimpinMenu = [
+    { icon: Home, label: 'Beranda', path: '/dashboard' },
+    { icon: BarChart3, label: 'Filter Data', path: '/dashboard/filter' },
+  ];
+
+  const adminAnalysis = [
     { icon: MapPin, label: 'Distribusi', path: '/dashboard/distribusi' },
     { icon: BarChart3, label: 'Forecasting', path: '/dashboard/forecasting' },
   ];
 
+  const pemimpinAnalysis = [
+    { icon: TrendingUp, label: 'Grafik Penjualan', path: '/dashboard' },
+  ];
+
   const searchIndex = [
     { label: 'Beranda', path: '/dashboard' },
+    { label: 'Kelola Data Transaksi', path: '/dashboard/penjualan' },
     { label: 'Data Armada', path: '/dashboard/armada' },
     { label: 'Driver', path: '/dashboard/driver' },
-    { label: 'Penjualan', path: '/dashboard/penjualan' },
     { label: 'Distribusi', path: '/dashboard/distribusi' },
     { label: 'Forecasting', path: '/dashboard/forecasting' },
-    { label: 'Filter & Drill-Down', path: '/dashboard/filter' },
+    { label: 'Filter Data', path: '/dashboard/filter' },
     { label: 'Koneksi Data', path: '/dashboard/data' },
   ];
 
   const searchResults = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return [];
-    return searchIndex.filter((item) => item.label.toLowerCase().includes(term));
-  }, [searchTerm]);
+    const availableItems = userRole === 'Pemimpin'
+      ? searchIndex.filter((item) => ['/dashboard', '/dashboard/filter'].includes(item.path))
+      : searchIndex;
+    return availableItems.filter((item) => item.label.toLowerCase().includes(term));
+  }, [searchTerm, userRole]);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem('abb-theme');
     const isDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
     setDarkMode(isDark);
     document.documentElement.classList.toggle('dark', isDark);
+
+    const savedRole = window.localStorage.getItem('abb-role');
+    const savedName = window.localStorage.getItem('abb-user');
+    if (savedRole === 'Pemimpin' || savedRole === 'Admin') {
+      setUserRole(savedRole);
+      setProfile((prev) => ({
+        ...prev,
+        name: savedName || (savedRole === 'Pemimpin' ? 'Pemimpin' : 'Admin User'),
+        role: savedRole === 'Pemimpin' ? 'Pemimpin' : 'Administrator',
+      }));
+    }
   }, []);
 
   const handleToggleTheme = () => {
@@ -59,6 +83,8 @@ export default function DashboardLayout() {
   };
 
   const handleLogout = () => {
+    window.localStorage.removeItem('abb-role');
+    window.localStorage.removeItem('abb-user');
     navigate('/');
   };
 
@@ -89,9 +115,9 @@ export default function DashboardLayout() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4">
           <div className="mb-6">
-            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>Menu Utama</p>
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>Menu {userRole === 'Pemimpin' ? 'Pemimpin' : 'Admin'}</p>
             <div className="space-y-1">
-              {menuItems.map((item) => {
+              {(userRole === 'Pemimpin' ? pemimpinMenu : adminMenu).map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 return (
@@ -120,7 +146,7 @@ export default function DashboardLayout() {
           <div className="mb-6">
             <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>Analisis</p>
             <div className="space-y-1">
-              {analysisItems.map((item) => {
+              {(userRole === 'Pemimpin' ? pemimpinAnalysis : adminAnalysis).map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 return (
@@ -146,40 +172,42 @@ export default function DashboardLayout() {
             </div>
           </div>
 
-          <div>
-            <button
-              onClick={() => {
-                navigate('/dashboard/filter');
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                location.pathname === '/dashboard/filter'
-                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-200'
-                  : darkMode
-                    ? 'text-slate-200 hover:bg-slate-800'
-                    : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <BarChart3 size={20} />
-              <span className="text-sm font-medium">Filter & Drill-Down</span>
-            </button>
-            <button
-              onClick={() => {
-                navigate('/dashboard/data');
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                location.pathname === '/dashboard/data'
-                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-200'
-                  : darkMode
-                    ? 'text-slate-200 hover:bg-slate-800'
-                    : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <Database size={20} />
-              <span className="text-sm font-medium">Koneksi Data</span>
-            </button>
-          </div>
+          {userRole === 'Admin' ? (
+            <div>
+              <button
+                onClick={() => {
+                  navigate('/dashboard/filter');
+                  setIsSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  location.pathname === '/dashboard/filter'
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-200'
+                    : darkMode
+                      ? 'text-slate-200 hover:bg-slate-800'
+                      : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <BarChart3 size={20} />
+                <span className="text-sm font-medium">Filter & Drill-Down</span>
+              </button>
+              <button
+                onClick={() => {
+                  navigate('/dashboard/data');
+                  setIsSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  location.pathname === '/dashboard/data'
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-200'
+                    : darkMode
+                      ? 'text-slate-200 hover:bg-slate-800'
+                      : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Database size={20} />
+                <span className="text-sm font-medium">Koneksi Data</span>
+              </button>
+            </div>
+          ) : null}
         </nav>
       </aside>
 
