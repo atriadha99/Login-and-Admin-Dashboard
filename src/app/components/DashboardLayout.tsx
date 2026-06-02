@@ -31,10 +31,12 @@ export default function DashboardLayout() {
   const adminAnalysis = [
     { icon: MapPin, label: 'Distribusi', path: '/dashboard/distribusi' },
     { icon: BarChart3, label: 'Forecasting', path: '/dashboard/forecasting' },
+    { icon: Database, label: 'Koneksi Data', path: '/dashboard/data' },
   ];
 
   const pemimpinAnalysis = [
-    { icon: TrendingUp, label: 'Grafik Penjualan', path: '/dashboard' },
+    { icon: MapPin, label: 'Distribusi', path: '/dashboard/distribusi' },
+    { icon: BarChart3, label: 'Forecasting', path: '/dashboard/forecasting' },
   ];
 
   const searchIndex = [
@@ -52,7 +54,7 @@ export default function DashboardLayout() {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return [];
     const availableItems = userRole === 'Pemimpin'
-      ? searchIndex.filter((item) => ['/dashboard', '/dashboard/filter'].includes(item.path))
+      ? searchIndex.filter((item) => ['/dashboard', '/dashboard/filter', '/dashboard/distribusi', '/dashboard/forecasting'].includes(item.path))
       : searchIndex;
     return availableItems.filter((item) => item.label.toLowerCase().includes(term));
   }, [searchTerm, userRole]);

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { User, Star, TrendingUp, Award, Phone, MapPin } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner';
@@ -88,9 +89,18 @@ const performanceData = [
 ];
 
 export default function DriverPage() {
+  const navigate = useNavigate();
   const [drivers, setDrivers] = useState(initialDrivers);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newDriver, setNewDriver] = useState({ name: '', phone: '', vehicle: '' });
+
+  useEffect(() => {
+    const userRole = window.localStorage.getItem('abb-role');
+    if (userRole === 'Pemimpin') {
+      toast.error('Anda tidak memiliki akses ke halaman ini.');
+      navigate('/dashboard');
+    }
+  }, [navigate]);
 
   const handleAddDriver = () => {
     if (!newDriver.name.trim() || !newDriver.phone.trim()) {

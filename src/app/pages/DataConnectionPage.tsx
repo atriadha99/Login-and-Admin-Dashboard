@@ -1,7 +1,29 @@
 import { useEffect, useState } from 'react';
-import { Database, FileSpreadsheet, Globe, CheckCircle, XCircle, Download, RefreshCw } from 'lucide-react';
+import { Database, FileSpreadsheet, Globe, CheckCircle, XCircle, Download, RefreshCw, Clock, X, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { testNeonConnection } from '../../lib/neon';
+
+// Utility function to parse CSV
+const parseCSV = (text: string): string[][] => {
+  const lines = text.split('\n').filter((line) => line.trim());
+  return lines.map((line) => {
+    // Handle quoted fields
+    const regex = /("(?:[^"]|"")*"|[^,]*)/g;
+    const matches = line.match(regex) || [];
+    return matches.map((field) => {
+      let cleaned = field.trim();
+      if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+        cleaned = cleaned.slice(1, -1).replace(/""/g, '"');
+      }
+      return cleaned;
+    });
+  });
+};
+
+// Utility function to parse Excel (simple approach - reads as text)
+const parseExcel = (text: string): string[][] => {
+  return parseCSV(text);
+};
 
 type DataSource = {
   id: string;
@@ -12,7 +34,33 @@ type DataSource = {
   records?: number;
 };
 
+type ScheduledRefresh = {
+  id: string;
+  sourceId: string;
+  frequency: 'hourly' | 'daily' | 'weekly';
+  time: string;
+  enabled: boolean;
+  lastRun?: string;
+};
+
 export default function DataConnectionPage() {
+  const [userRole, setUserRole] = useState<'Admin' | 'Pemimpin'>('Admin');
+  const [schedules, setSchedules] = useState<ScheduledRefresh[]>([
+    {
+      id: '1',
+      sourceId: 'env-neon',
+      frequency: 'daily',
+      time: '02:00',
+      enabled: true,
+      lastRun: '2026-05-07 02:15',
+    },
+  ]);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    sourceId: 'env-neon',
+    frequency: 'daily' as const,
+    time: '02:00',
+  });
   const [dataSources, setDataSources] = useState<DataSource[]>([
     {
       id: 'env-neon',
@@ -48,9 +96,18 @@ export default function DataConnectionPage() {
   const [newSourceDatabase, setNewSourceDatabase] = useState('');
   const [newSourceEndpoint, setNewSourceEndpoint] = useState('');
   const [exportFormat, setExportFormat] = useState<'pdf' | 'excel' | 'csv'>('pdf');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<string[][]>([]);
+  const [importSourceName, setImportSourceName] = useState('');
 
   useEffect(() => {
     let active = true;
+
+    const savedRole = window.localStorage.getItem('abb-role');
+    if (savedRole === 'Pemimpin' || savedRole === 'Admin') {
+      setUserRole(savedRole);
+    }
 
     const verifyConnection = async () => {
       try {
@@ -89,6 +146,45 @@ export default function DataConnectionPage() {
       active = false;
     };
   }, []);
+
+  const handleAddSchedule = () => {
+    if (!scheduleForm.sourceId || !scheduleForm.time) {
+      toast.error('Silakan lengkapi semua field.');
+      return;
+    }
+
+    const newSchedule: ScheduledRefresh = {
+      id: `${Date.now()}`,
+      sourceId: scheduleForm.sourceId,
+      frequency: scheduleForm.frequency,
+      time: scheduleForm.time,
+      enabled: true,
+      lastRun: undefined,
+    };
+
+    setSchedules((prev) => [newSchedule, ...prev]);
+    toast.success('Scheduled Refresh berhasil ditambahkan.');
+    setShowScheduleModal(false);
+    setScheduleForm({ sourceId: 'env-neon', frequency: 'daily', time: '02:00' });
+  };
+
+  const handleToggleSchedule = (id: string) => {
+    setSchedules((prev) =>
+      prev.map((schedule) =>
+        schedule.id === id ? { ...schedule, enabled: !schedule.enabled } : schedule
+      )
+    );
+    toast.success('Scheduled Refresh diperbarui.');
+  };
+
+  const handleDeleteSchedule = (id: string) => {
+    setSchedules((prev) => prev.filter((schedule) => schedule.id !== id));
+    toast.success('Scheduled Refresh berhasil dihapus.');
+  };
+
+  const getSourceName = (sourceId: string) => {
+    return dataSources.find((s) => s.id === sourceId)?.name || 'Unknown Source';
+  };
 
   const handleConnect = async (id: string) => {
     if (id === 'env-neon') {
@@ -279,6 +375,60 @@ export default function DataConnectionPage() {
     toast.success(`Sumber data "${newSource.name}" berhasil ditambahkan.`);
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    const isValidType = validTypes.some((type) => file.type.includes(type)) || file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+    if (!isValidType) {
+      toast.error('Format file tidak didukung. Gunakan CSV atau Excel.');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const data = file.name.endsWith('.csv') ? parseCSV(text) : parseExcel(text);
+
+      if (data.length === 0) {
+        toast.error('File kosong atau format tidak valid.');
+        return;
+      }
+
+      setImportFile(file);
+      setImportPreview(data.slice(0, 10)); // Show first 10 rows
+      setImportSourceName(file.name.replace(/\.[^/.]+$/, '')); // Remove file extension
+      toast.success('File berhasil dibaca. Siap untuk diimpor.');
+    } catch (error) {
+      toast.error('Gagal membaca file. Pastikan format CSV atau Excel.');
+    }
+  };
+
+  const handleConfirmImport = () => {
+    if (!importFile || !importSourceName.trim()) {
+      toast.error('Silakan pilih file dan beri nama sumber data.');
+      return;
+    }
+
+    const newSource: DataSource = {
+      id: `${Date.now()}`,
+      name: importSourceName.trim(),
+      type: 'csv',
+      status: 'connected',
+      lastSync: new Date().toLocaleString('id-ID'),
+      records: Math.max(0, importPreview.length - 1), // Subtract header row
+    };
+
+    setDataSources((prev) => [newSource, ...prev]);
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportPreview([]);
+    setImportSourceName('');
+    toast.success(`Data dari "${newSource.name}" berhasil diimpor dengan ${newSource.records} record.`);
+  };
+
   const getIcon = (type: string) => {
     switch (type) {
       case 'mysql':
@@ -334,6 +484,13 @@ export default function DataConnectionPage() {
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Refresh Semua
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-2"
+          >
+            <Upload size={16} />
+            Import Data
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -519,8 +676,152 @@ export default function DataConnectionPage() {
         </div>
       </div>
 
+      {/* Scheduled Refresh Section - Admin Only */}
+      {userRole === 'Admin' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <Clock className="text-blue-600" size={20} />
+              <h3 className="text-lg font-semibold text-gray-900">Scheduled Refresh</h3>
+            </div>
+            <button
+              onClick={() => setShowScheduleModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              + Tambah Jadwal
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {schedules.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="mx-auto text-gray-300 mb-3" size={32} />
+                <p className="text-gray-500 text-sm">Belum ada jadwal refresh. Klik tombol di atas untuk menambahkan.</p>
+              </div>
+            ) : (
+              schedules.map((schedule) => (
+                <div key={schedule.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-1">
+                      <h4 className="font-medium text-gray-900">{getSourceName(schedule.sourceId)}</h4>
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded ${
+                          schedule.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {schedule.enabled ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span>Frekuensi: {schedule.frequency === 'hourly' ? 'Setiap Jam' : schedule.frequency === 'daily' ? 'Setiap Hari' : 'Setiap Minggu'}</span>
+                      <span>Waktu: {schedule.time}</span>
+                      {schedule.lastRun && <span>Run terakhir: {schedule.lastRun}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleSchedule(schedule.id)}
+                      className={`px-3 py-1 text-sm rounded transition-colors ${
+                        schedule.enabled
+                          ? 'border border-gray-300 text-gray-700 hover:bg-gray-200'
+                          : 'border border-blue-300 text-blue-700 hover:bg-blue-50'
+                      }`}
+                    >
+                      {schedule.enabled ? 'Nonaktifkan' : 'Aktifkan'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSchedule(schedule.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Hapus"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Modal - Admin Only */}
+      {userRole === 'Admin' && showScheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Tambah Scheduled Refresh</h3>
+              <button
+                type="button"
+                onClick={() => setShowScheduleModal(false)}
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Pilih Sumber Data</label>
+                <select
+                  value={scheduleForm.sourceId}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, sourceId: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {dataSources.filter((s) => s.status === 'connected').map((source) => (
+                    <option key={source.id} value={source.id}>
+                      {source.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Frekuensi</label>
+                <select
+                  value={scheduleForm.frequency}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, frequency: e.target.value as any })}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="hourly">Setiap Jam</option>
+                  <option value="daily">Setiap Hari</option>
+                  <option value="weekly">Setiap Minggu</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Waktu Eksekusi</label>
+                <input
+                  type="time"
+                  value={scheduleForm.time}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowScheduleModal(false)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleAddSchedule}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+              >
+                Simpan Jadwal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Data Source Modal */}
       {showAddModal && (
+
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6 border-b border-gray-200">
@@ -605,6 +906,122 @@ export default function DataConnectionPage() {
                 Tambah Sumber Data
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Data Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Upload size={24} className="text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Import Data dari File</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportPreview([]);
+                  setImportSourceName('');
+                }}
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {!importFile ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
+                  <Upload className="mx-auto mb-3 text-gray-400" size={40} />
+                  <p className="mb-2 text-sm font-medium text-gray-900">Pilih file CSV atau Excel</p>
+                  <p className="mb-4 text-xs text-gray-500">Drag & drop atau klik untuk memilih</p>
+                  <label className="inline-block">
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => (e.currentTarget.previousElementSibling as HTMLInputElement)?.click()}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                    >
+                      Pilih File
+                    </button>
+                  </label>
+                </div>
+                <div className="rounded-lg bg-blue-50 p-4">
+                  <p className="text-xs text-blue-800">
+                    <strong>Format yang didukung:</strong> CSV dan Excel (.xlsx, .xls). File harus memiliki header di baris pertama.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Nama Sumber Data</label>
+                  <input
+                    type="text"
+                    value={importSourceName}
+                    onChange={(e) => setImportSourceName(e.target.value)}
+                    placeholder="Contoh: Sales Data 2026"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Preview Data</label>
+                  <div className="max-h-64 overflow-auto rounded-lg border border-gray-200 bg-gray-50">
+                    <table className="w-full border-collapse text-xs">
+                      <tbody>
+                        {importPreview.map((row, rowIdx) => (
+                          <tr key={rowIdx} className={rowIdx === 0 ? 'border-b-2 border-gray-300 bg-gray-100' : ''}>
+                            {row.map((cell, cellIdx) => (
+                              <td
+                                key={cellIdx}
+                                className="border border-gray-200 px-2 py-1 text-gray-700"
+                              >
+                                {cell.substring(0, 30)}
+                                {cell.length > 30 ? '...' : ''}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Menampilkan {Math.min(10, importPreview.length)} dari {importPreview.length} baris ({Math.max(0, importPreview.length - 1)} record data)
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportFile(null);
+                      setImportPreview([]);
+                      setImportSourceName('');
+                    }}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Pilih File Lain
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmImport}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                  >
+                    Impor Data
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

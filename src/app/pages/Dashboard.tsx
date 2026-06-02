@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, DollarSign, ShoppingCart, Activity, Download, Sparkles } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingCart, Activity, Download, Sparkles, FileText, Filter } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 // Mock data
@@ -44,9 +45,18 @@ const forecastData = [
 
 export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<'6M' | '1Y'>('6M');
+  const [userRole, setUserRole] = useState<'Admin' | 'Pemimpin'>('Admin');
+  const navigate = useNavigate();
 
   const chartData = selectedPeriod === '6M' ? monthlyData : annualData;
   const periodLabel = selectedPeriod === '6M' ? '6 bulan terakhir' : '1 tahun terakhir';
+
+  useEffect(() => {
+    const savedRole = window.localStorage.getItem('abb-role');
+    if (savedRole === 'Pemimpin' || savedRole === 'Admin') {
+      setUserRole(savedRole);
+    }
+  }, []);
 
   const handleExportSummary = () => {
     const csvContent = [
@@ -135,25 +145,52 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="text-blue-600" size={18} />
-            <h3 className="text-lg font-semibold text-gray-900">Aksi Cepat Admin</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Aksi Cepat {userRole === 'Pemimpin' ? 'Pemimpin' : 'Admin'}</h3>
           </div>
-          <p className="text-sm text-gray-500 mb-4">Gunakan fitur yang sudah siap untuk mendukung operasi harian.</p>
+          <p className="text-sm text-gray-500 mb-4">
+            {userRole === 'Pemimpin'
+              ? 'Gunakan fitur yang tersedia untuk mendukung pengambilan keputusan.'
+              : 'Gunakan fitur yang sudah siap untuk mendukung operasi harian.'}
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={handleExportSummary}
-              className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Download size={16} />
-              Export ringkasan
-            </button>
-            <button
-              type="button"
-              onClick={handleGenerateInsight}
-              className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Buat insight otomatis
-            </button>
+            {userRole === 'Admin' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleExportSummary}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <Download size={16} />
+                  Export ringkasan
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateInsight}
+                  className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Buat insight otomatis
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard/filter')}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <Filter size={16} />
+                  Filter Data
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportSummary}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  <FileText size={16} />
+                  Download Laporan
+                </button>
+              </>
+            )}
           </div>
         </div>
 

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { Truck, Wrench, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -73,9 +74,18 @@ const initialVehicles: Vehicle[] = [
 ];
 
 export default function ArmadaPage() {
+  const navigate = useNavigate();
   const [vehicles, setVehicles] = useState(initialVehicles);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newVehicle, setNewVehicle] = useState({ plateNumber: '', type: '', driver: '' });
+
+  useEffect(() => {
+    const userRole = window.localStorage.getItem('abb-role');
+    if (userRole === 'Pemimpin') {
+      toast.error('Anda tidak memiliki akses ke halaman ini.');
+      navigate('/dashboard');
+    }
+  }, [navigate]);
 
   const handleAddVehicle = () => {
     if (!newVehicle.plateNumber || !newVehicle.type) {

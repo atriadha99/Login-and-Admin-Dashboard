@@ -1,5 +1,24 @@
-import { DollarSign, TrendingUp, ShoppingBag, Package } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
+import { DollarSign, TrendingUp, ShoppingBag, Package, Plus, Edit2, Trash2, X, Upload } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { toast } from 'sonner';
+
+// Utility function to parse CSV
+const parseCSV = (text: string): string[][] => {
+  const lines = text.split('\n').filter((line) => line.trim());
+  return lines.map((line) => {
+    const regex = /("(?:[^"]|"")*"|[^,]*)/g;
+    const matches = line.match(regex) || [];
+    return matches.map((field) => {
+      let cleaned = field.trim();
+      if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+        cleaned = cleaned.slice(1, -1).replace(/""/g, '"');
+      }
+      return cleaned;
+    });
+  });
+};
 
 const monthlyData = [
   { month: 'Jan', penjualan: 45000000, target: 42000000 },
@@ -28,10 +47,167 @@ const regionSales = [
 
 const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444'];
 
+interface Transaction {
+  id: string;
+  date: string;
+  customer: string;
+  amount: number;
+  region: string;
+}
+
+const initialTransactions: Transaction[] = [
+  { id: 'TRX-001', date: '2026-05-06', customer: 'Toko Sumber Rejeki', amount: 2500000, region: 'Bogor Utara' },
+  { id: 'TRX-002', date: '2026-05-06', customer: 'Warung Maju Jaya', amount: 1800000, region: 'Bogor Selatan' },
+  { id: 'TRX-003', date: '2026-05-05', customer: 'CV Berkah Abadi', amount: 4200000, region: 'Cibinong' },
+  { id: 'TRX-004', date: '2026-05-05', customer: 'Toko Harapan Baru', amount: 3100000, region: 'Bogor Barat' },
+  { id: 'TRX-005', date: '2026-05-04', customer: 'UD Sumber Makmur', amount: 2900000, region: 'Bogor Timur' },
+];
+
 export default function PenjualanPage() {
+  const navigate = useNavigate();
+  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({ customer: '', amount: '', date: '', region: '' });
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<string[][]>([]);
+
+  useEffect(() => {
+    const userRole = window.localStorage.getItem('abb-role');
+    if (userRole === 'Pemimpin') {
+      toast.error('Anda tidak memiliki akses ke halaman ini.');
+      navigate('/dashboard');
+    }
+  }, [navigate]);
+
   const totalSales = monthlyData.reduce((acc, item) => acc + item.penjualan, 0);
   const avgSales = totalSales / monthlyData.length;
   const growth = ((monthlyData[monthlyData.length - 1].penjualan - monthlyData[0].penjualan) / monthlyData[0].penjualan) * 100;
+
+  const handleOpenModal = (transaction?: Transaction) => {
+    if (transaction) {
+      setEditingId(transaction.id);
+      setFormData({
+        customer: transaction.customer,
+        amount: transaction.amount.toString(),
+        date: transaction.date,
+        region: transaction.region,
+      });
+    } else {
+      setEditingId(null);
+      setFormData({ customer: '', amount: '', date: '', region: '' });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFormData({ customer: '', amount: '', date: '', region: '' });
+    setEditingId(null);
+  };
+
+  const handleSave = () => {
+    if (!formData.customer || !formData.amount || !formData.date || !formData.region) {
+      toast.error('Semua field harus diisi.');
+      return;
+    }
+
+    if (editingId) {
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id === editingId
+            ? { ...t, customer: formData.customer, amount: parseInt(formData.amount), date: formData.date, region: formData.region }
+            : t
+        )
+      );
+      toast.success('Data transaksi berhasil diperbarui.');
+    } else {
+      const newId = `TRX-${String(transactions.length + 1).padStart(3, '0')}`;
+      setTransactions((prev) => [
+        ...prev,
+        {
+          id: newId,
+          customer: formData.customer,
+          amount: parseInt(formData.amount),
+          date: formData.date,
+          region: formData.region,
+        },
+      ]);
+      toast.success('Data transaksi berhasil ditambahkan.');
+    }
+    handleCloseModal();
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) {
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
+      toast.success('Data transaksi berhasil dihapus.');
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    const isValidType = validTypes.some((type) => file.type.includes(type)) || file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+    if (!isValidType) {
+      toast.error('Format file tidak didukung. Gunakan CSV atau Excel.');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const data = parseCSV(text);
+
+      if (data.length === 0) {
+        toast.error('File kosong atau format tidak valid.');
+        return;
+      }
+
+      setImportFile(file);
+      setImportPreview(data.slice(0, 10));
+      toast.success('File berhasil dibaca. Siap untuk diimpor.');
+    } catch (error) {
+      toast.error('Gagal membaca file. Pastikan format CSV atau Excel.');
+    }
+  };
+
+  const handleConfirmImport = () => {
+    if (!importFile || importPreview.length === 0) {
+      toast.error('Tidak ada data untuk diimpor.');
+      return;
+    }
+
+    // Parse the data starting from row 1 (skip header)
+    const importedTransactions: Transaction[] = [];
+    for (let i = 1; i < importPreview.length; i++) {
+      const row = importPreview[i];
+      if (row.length >= 4) {
+        const transaction: Transaction = {
+          id: `TRX-${Date.now()}-${i}`,
+          date: row[0] || new Date().toISOString().split('T')[0],
+          customer: row[1] || 'Unknown',
+          amount: parseInt(row[2]) || 0,
+          region: row[3] || 'Unknown',
+        };
+        importedTransactions.push(transaction);
+      }
+    }
+
+    if (importedTransactions.length === 0) {
+      toast.error('Tidak ada data yang valid dalam file.');
+      return;
+    }
+
+    setTransactions((prev) => [...importedTransactions, ...prev]);
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportPreview([]);
+    toast.success(`${importedTransactions.length} transaksi berhasil diimpor.`);
+  };
 
   return (
     <div className="space-y-6">
@@ -162,7 +338,76 @@ export default function PenjualanPage() {
         </div>
       </div>
 
+      {/* Data Transaksi */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">Data Transaksi</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
+            >
+              <Upload size={16} />
+              Import Data
+            </button>
+            <button
+              onClick={() => handleOpenModal()}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              <Plus size={16} />
+              Input Transaksi Baru
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left text-xs font-semibold text-gray-600 pb-3">ID</th>
+                <th className="text-left text-xs font-semibold text-gray-600 pb-3">Tanggal</th>
+                <th className="text-left text-xs font-semibold text-gray-600 pb-3">Customer</th>
+                <th className="text-left text-xs font-semibold text-gray-600 pb-3">Wilayah</th>
+                <th className="text-right text-xs font-semibold text-gray-600 pb-3">Jumlah</th>
+                <th className="text-center text-xs font-semibold text-gray-600 pb-3">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((transaction) => (
+                <tr key={transaction.id} className="border-b border-gray-100">
+                  <td className="py-3 text-sm text-gray-600">{transaction.id}</td>
+                  <td className="py-3 text-sm text-gray-600">{transaction.date}</td>
+                  <td className="py-3 text-sm text-gray-900">{transaction.customer}</td>
+                  <td className="py-3 text-sm text-gray-600">{transaction.region}</td>
+                  <td className="py-3 text-sm text-gray-900 text-right font-medium">
+                    Rp {(transaction.amount / 1000000).toFixed(1)}M
+                  </td>
+                  <td className="py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleOpenModal(transaction)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(transaction.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Hapus"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Sales Insights */}
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Insight Penjualan</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -215,6 +460,199 @@ export default function PenjualanPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal Input/Edit Transaksi */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {editingId ? 'Edit Transaksi' : 'Input Transaksi Baru'}
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Tanggal</label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Nama Customer</label>
+                <input
+                  type="text"
+                  value={formData.customer}
+                  onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Contoh: Toko Sumber Rejeki"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Wilayah</label>
+                <select
+                  value={formData.region}
+                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Pilih Wilayah</option>
+                  <option value="Bogor Utara">Bogor Utara</option>
+                  <option value="Bogor Selatan">Bogor Selatan</option>
+                  <option value="Bogor Barat">Bogor Barat</option>
+                  <option value="Bogor Timur">Bogor Timur</option>
+                  <option value="Cibinong">Cibinong</option>
+                  <option value="Ciawi">Ciawi</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Jumlah (Rp)</label>
+                <input
+                  type="number"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Contoh: 2500000"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+              >
+                {editingId ? 'Perbarui' : 'Simpan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Data Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Upload size={24} className="text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Import Transaksi dari File</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportPreview([]);
+                }}
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {!importFile ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
+                  <Upload className="mx-auto mb-3 text-gray-400" size={40} />
+                  <p className="mb-2 text-sm font-medium text-gray-900">Pilih file CSV atau Excel</p>
+                  <p className="mb-4 text-xs text-gray-500">Drag & drop atau klik untuk memilih</p>
+                  <label className="inline-block">
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => (e.currentTarget.previousElementSibling as HTMLInputElement)?.click()}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                    >
+                      Pilih File
+                    </button>
+                  </label>
+                </div>
+                <div className="rounded-lg bg-blue-50 p-4">
+                  <p className="text-xs text-blue-800">
+                    <strong>Format file:</strong> CSV atau Excel (.xlsx, .xls)<br/>
+                    <strong>Kolom:</strong> Tanggal, Customer, Jumlah, Wilayah (dalam urutan tersebut)
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Preview Data</label>
+                  <div className="max-h-64 overflow-auto rounded-lg border border-gray-200 bg-gray-50">
+                    <table className="w-full border-collapse text-xs">
+                      <tbody>
+                        {importPreview.map((row, rowIdx) => (
+                          <tr key={rowIdx} className={rowIdx === 0 ? 'border-b-2 border-gray-300 bg-gray-100' : ''}>
+                            {row.map((cell, cellIdx) => (
+                              <td
+                                key={cellIdx}
+                                className="border border-gray-200 px-2 py-1 text-gray-700"
+                              >
+                                {cell.substring(0, 25)}
+                                {cell.length > 25 ? '...' : ''}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Akan mengimpor {Math.max(0, importPreview.length - 1)} transaksi
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportFile(null);
+                      setImportPreview([]);
+                    }}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Pilih File Lain
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmImport}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                  >
+                    Impor Transaksi
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
