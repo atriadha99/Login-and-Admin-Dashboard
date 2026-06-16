@@ -17,68 +17,7 @@ type Driver = {
   joinDate: string;
 };
 
-const initialDrivers: Driver[] = [
-  {
-    id: '1',
-    name: 'Ahmad Suryadi',
-    phone: '+62 812-3456-7890',
-    vehicle: 'B 1234 ABC',
-    status: 'on-trip',
-    rating: 4.8,
-    totalTrips: 245,
-    completedTrips: 243,
-    revenue: 98500000,
-    joinDate: '2024-01-15',
-  },
-  {
-    id: '2',
-    name: 'Budi Santoso',
-    phone: '+62 813-4567-8901',
-    vehicle: 'B 5678 DEF',
-    status: 'available',
-    rating: 4.6,
-    totalTrips: 198,
-    completedTrips: 195,
-    revenue: 76200000,
-    joinDate: '2024-03-20',
-  },
-  {
-    id: '3',
-    name: 'Dedi Kurniawan',
-    phone: '+62 814-5678-9012',
-    vehicle: 'B 3456 JKL',
-    status: 'on-trip',
-    rating: 4.9,
-    totalTrips: 167,
-    completedTrips: 167,
-    revenue: 68900000,
-    joinDate: '2024-05-10',
-  },
-  {
-    id: '4',
-    name: 'Eko Prasetyo',
-    phone: '+62 815-6789-0123',
-    vehicle: '-',
-    status: 'off-duty',
-    rating: 4.5,
-    totalTrips: 134,
-    completedTrips: 131,
-    revenue: 52400000,
-    joinDate: '2024-06-15',
-  },
-  {
-    id: '5',
-    name: 'Firman Hidayat',
-    phone: '+62 816-7890-1234',
-    vehicle: '-',
-    status: 'available',
-    rating: 4.7,
-    totalTrips: 89,
-    completedTrips: 88,
-    revenue: 34600000,
-    joinDate: '2025-01-08',
-  },
-];
+const initialDrivers: Driver[] = [];
 
 const performanceData = [
   { month: 'Jan', trips: 42, revenue: 16800000 },
@@ -257,46 +196,59 @@ export default function DriverPage() {
               </tr>
             </thead>
             <tbody>
-              {drivers.map((driver) => (
-                <tr key={driver.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        <User className="text-blue-600" size={20} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{driver.name}</p>
-                        <p className="text-xs text-gray-500">Bergabung: {driver.joinDate}</p>
-                      </div>
+              {drivers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <svg className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                      </svg>
+                      <span>Belum ada data driver. Silakan tambah data baru melalui form.</span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone size={14} className="text-gray-400" />
-                      {driver.phone}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {driver.vehicle || <span className="text-gray-400">Tidak ada</span>}
-                  </td>
-                  <td className="px-6 py-4">{getStatusBadge(driver.status)}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1">
-                      <Star className="text-yellow-400 fill-yellow-400" size={16} />
-                      <span className="text-sm font-medium text-gray-900">{driver.rating}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
-                    {driver.totalTrips}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
-                    {driver.completedTrips}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
-                    Rp {(driver.revenue / 1000000).toFixed(1)}M
                   </td>
                 </tr>
-              ))}
+              ) : (
+                drivers.map((driver) => (
+                  <tr key={driver.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                          <User className="text-blue-600" size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{driver.name}</p>
+                          <p className="text-xs text-gray-500">Bergabung: {driver.joinDate}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Phone size={14} className="text-gray-400" />
+                        {driver.phone}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {driver.vehicle || <span className="text-gray-400">Tidak ada</span>}
+                    </td>
+                    <td className="px-6 py-4">{getStatusBadge(driver.status)}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1">
+                        <Star className="text-yellow-400 fill-yellow-400" size={16} />
+                        <span className="text-sm font-medium text-gray-900">{driver.rating}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
+                      {driver.totalTrips}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
+                      {driver.completedTrips}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
+                      Rp {(driver.revenue / 1000000).toFixed(1)}M
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -309,33 +261,37 @@ export default function DriverPage() {
           <h3 className="text-lg font-semibold text-gray-900">Driver Terbaik Bulan Ini</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {drivers
-            .sort((a, b) => b.rating - a.rating)
-            .slice(0, 3)
-            .map((driver, index) => (
-              <div key={driver.id} className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-100">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
-                      {index === 0 && <span className="text-2xl">🥇</span>}
-                      {index === 1 && <span className="text-2xl">🥈</span>}
-                      {index === 2 && <span className="text-2xl">🥉</span>}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{driver.name}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Star className="text-yellow-400 fill-yellow-400" size={14} />
-                        <span className="text-xs font-medium text-gray-700">{driver.rating}</span>
+          {drivers.length === 0 ? (
+            <p className="text-sm text-gray-500 col-span-3">Belum ada data rating driver.</p>
+          ) : (
+            drivers
+              .sort((a, b) => b.rating - a.rating)
+              .slice(0, 3)
+              .map((driver, index) => (
+                <div key={driver.id} className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
+                        {index === 0 && <span className="text-2xl">🥇</span>}
+                        {index === 1 && <span className="text-2xl">🥈</span>}
+                        {index === 2 && <span className="text-2xl">🥉</span>}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{driver.name}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <Star className="text-yellow-400 fill-yellow-400" size={14} />
+                          <span className="text-xs font-medium text-gray-700">{driver.rating}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  <div className="space-y-1 text-xs text-gray-600">
+                    <p>Total Trip: <span className="font-medium text-gray-900">{driver.totalTrips}</span></p>
+                    <p>Pendapatan: <span className="font-medium text-gray-900">Rp {(driver.revenue / 1000000).toFixed(1)}M</span></p>
+                  </div>
                 </div>
-                <div className="space-y-1 text-xs text-gray-600">
-                  <p>Total Trip: <span className="font-medium text-gray-900">{driver.totalTrips}</span></p>
-                  <p>Pendapatan: <span className="font-medium text-gray-900">Rp {(driver.revenue / 1000000).toFixed(1)}M</span></p>
-                </div>
-              </div>
-            ))}
+              ))
+          )}
         </div>
       </div>
 

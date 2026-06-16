@@ -12,13 +12,20 @@ export default function LoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const credentials: Record<'Admin' | 'Pemimpin', { email: string; password: string; name: string }> = {
-      Admin: { email: 'admin@ptabb.id', password: 'admin123', name: 'Admin User' },
-      Pemimpin: { email: 'pemimpin@ptabb.id', password: 'pemimpin123', name: 'Pemimpin' },
+    const credentials: Record<'Admin' | 'Pemimpin', Array<{ email: string; password: string; name: string }>> = {
+      Admin: [
+        { email: 'admin@ptabb.id', password: 'admin123', name: 'Admin User' },
+        { email: 'dosen@unpam.id', password: 'dosenunpam', name: 'Dosen UNPAM' }
+      ],
+      Pemimpin: [
+        { email: 'pemimpin@ptabb.id', password: 'pemimpin123', name: 'Pemimpin' }
+      ],
     };
 
-    const currentUser = credentials[role];
-    if (email.trim().toLowerCase() !== currentUser.email || password !== currentUser.password) {
+    const validUsers = credentials[role];
+    const currentUser = validUsers.find(u => u.email === email.trim().toLowerCase() && u.password === password);
+    
+    if (!currentUser) {
       toast.error('Email atau password tidak cocok untuk peran yang dipilih.');
       return;
     }

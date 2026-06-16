@@ -15,63 +15,7 @@ type Vehicle = {
   mileage: number;
 };
 
-const initialVehicles: Vehicle[] = [
-  {
-    id: '1',
-    plateNumber: 'B 1234 ABC',
-    type: 'Truk Tangki 5000L',
-    driver: 'Ahmad Suryadi',
-    status: 'active',
-    lastService: '2026-04-15',
-    nextService: '2026-07-15',
-    totalTrips: 245,
-    mileage: 45820,
-  },
-  {
-    id: '2',
-    plateNumber: 'B 5678 DEF',
-    type: 'Truk Tangki 3000L',
-    driver: 'Budi Santoso',
-    status: 'active',
-    lastService: '2026-04-20',
-    nextService: '2026-07-20',
-    totalTrips: 198,
-    mileage: 38450,
-  },
-  {
-    id: '3',
-    plateNumber: 'B 9012 GHI',
-    type: 'Truk Tangki 5000L',
-    driver: '-',
-    status: 'maintenance',
-    lastService: '2026-05-01',
-    nextService: '2026-08-01',
-    totalTrips: 312,
-    mileage: 52300,
-  },
-  {
-    id: '4',
-    plateNumber: 'B 3456 JKL',
-    type: 'Truk Tangki 3000L',
-    driver: 'Dedi Kurniawan',
-    status: 'active',
-    lastService: '2026-03-28',
-    nextService: '2026-06-28',
-    totalTrips: 167,
-    mileage: 31200,
-  },
-  {
-    id: '5',
-    plateNumber: 'B 7890 MNO',
-    type: 'Truk Box 2000L',
-    driver: '-',
-    status: 'idle',
-    lastService: '2026-04-10',
-    nextService: '2026-07-10',
-    totalTrips: 89,
-    mileage: 18750,
-  },
-];
+const initialVehicles: Vehicle[] = [];
 
 export default function ArmadaPage() {
   const navigate = useNavigate();
@@ -196,7 +140,7 @@ export default function ArmadaPage() {
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Kendaraan Aktif</h3>
           <p className="text-3xl font-bold text-gray-900">{activeVehicles}</p>
-          <p className="text-xs text-gray-500 mt-2">{((activeVehicles / vehicles.length) * 100).toFixed(0)}% dari total</p>
+          <p className="text-xs text-gray-500 mt-2">{vehicles.length > 0 ? ((activeVehicles / vehicles.length) * 100).toFixed(0) : 0}% dari total</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -242,34 +186,47 @@ export default function ArmadaPage() {
               </tr>
             </thead>
             <tbody>
-              {vehicles.map((vehicle) => (
-                <tr key={vehicle.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{vehicle.plateNumber}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{vehicle.type}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {vehicle.driver || <span className="text-gray-400">Tidak ada</span>}
-                  </td>
-                  <td className="px-6 py-4">{getStatusBadge(vehicle.status)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
-                      {vehicle.lastService}
+              {vehicles.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <svg className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                      </svg>
+                      <span>Belum ada data armada. Silakan tambah data baru melalui form.</span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
-                      {vehicle.nextService}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
-                    {vehicle.totalTrips}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
-                    {vehicle.mileage.toLocaleString('id-ID')} km
                   </td>
                 </tr>
-              ))}
+              ) : (
+                vehicles.map((vehicle) => (
+                  <tr key={vehicle.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{vehicle.plateNumber}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{vehicle.type}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {vehicle.driver || <span className="text-gray-400">Tidak ada</span>}
+                    </td>
+                    <td className="px-6 py-4">{getStatusBadge(vehicle.status)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-gray-400" />
+                        {vehicle.lastService}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-gray-400" />
+                        {vehicle.nextService}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
+                      {vehicle.totalTrips}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
+                      {vehicle.mileage.toLocaleString('id-ID')} km
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
