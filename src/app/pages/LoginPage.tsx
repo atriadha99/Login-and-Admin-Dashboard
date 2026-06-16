@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Lock, Mail } from 'lucide-react';
+import { Lock, Mail, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'Admin' | 'Pemimpin'>('Admin');
@@ -22,7 +24,15 @@ export default function LoginPage() {
       ],
     };
 
-    const validUsers = credentials[role];
+    // Ambil data user yang mendaftar via form Register (jika ada)
+    const registeredUsers = JSON.parse(window.localStorage.getItem('abb-registered-users') || '[]');
+    
+    // Gabungkan user bawaan dengan user hasil register yang rolenya sesuai
+    const validUsers = [
+      ...credentials[role],
+      ...registeredUsers.filter((u: any) => u.role === role)
+    ];
+
     const currentUser = validUsers.find(u => u.email === email.trim().toLowerCase() && u.password === password);
     
     if (!currentUser) {
@@ -34,6 +44,38 @@ export default function LoginPage() {
     window.localStorage.setItem('abb-user', currentUser.name);
     toast.success('Login berhasil. Mengalihkan ke dashboard...');
     navigate('/dashboard');
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!name.trim() || !email.trim() || !password) {
+      toast.error('Semua kolom wajib diisi.');
+      return;
+    }
+
+    const registeredUsers = JSON.parse(window.localStorage.getItem('abb-registered-users') || '[]');
+    
+    // Cek apakah email sudah terdaftar
+    const isEmailExists = registeredUsers.some((u: any) => u.email === email.trim().toLowerCase()) || 
+                          email.trim().toLowerCase() === 'admin@ptabb.id' || 
+                          email.trim().toLowerCase() === 'dosen@unpam.id';
+
+    if (isEmailExists) {
+      toast.error('Email ini sudah terdaftar. Silakan gunakan email lain.');
+      return;
+    }
+
+    const newUser = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      role
+    };
+
+    window.localStorage.setItem('abb-registered-users', JSON.stringify([...registeredUsers, newUser]));
+    toast.success('Registrasi berhasil! Silakan login dengan akun baru Anda.');
+    setIsLogin(true); // Kembali ke mode login
   };
 
   const handleForgotPassword = () => {
@@ -51,11 +93,31 @@ export default function LoginPage() {
             <p className="text-gray-600 mt-2">Business Intelligence System</p>
           </div>
 
-          {/* Login Form */}
-          <form onSubmit={handleLogin} className="space-y-6">
+          {/* Dynamic Form: Login / Register */}
+          <form onSubmit={isLogin ? handleLogin : handleRegister} className="space-y-6">
+            {!isLogin && (
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                  Nama Lengkap
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    id="name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Masukkan nama lengkap Anda"
+                    required={!isLogin}
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email / Username
+                Email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -65,7 +127,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter your email or username"
+                  placeholder="Masukkan alamat email"
                   required
                 />
               </div>
@@ -73,7 +135,7 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+                {isLogin ? 'Password' : 'Buat Password'}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -83,7 +145,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter your password"
+                  placeholder={isLogin ? "Masukkan password" : "Minimal 6 karakter"}
                   required
                 />
               </div>
@@ -91,7 +153,7 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                Peran Pengguna
+                {isLogin ? 'Login Sebagai' : 'Daftar Sebagai'}
               </label>
               <select
                 id="role"
@@ -108,18 +170,26 @@ export default function LoginPage() {
               type="submit"
               className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
-              Login
+              {isLogin ? 'Login' : 'Daftar Sekarang'}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={handleForgotPassword}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              Forgot Password?
-            </button>
+          <div className="mt-6 text-center space-y-4">
+            <div className="text-sm text-gray-600">
+              {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
+              <button
+                type="button"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-blue-600 font-medium hover:underline"
+              >
+                {isLogin ? "Daftar di sini" : "Login di sini"}
+              </button>
+            </div>
+            {isLogin && (
+              <button type="button" onClick={handleForgotPassword} className="text-sm text-blue-600 hover:underline block w-full">
+                Lupa Password?
+              </button>
+            )}
           </div>
         </div>
       </div>
