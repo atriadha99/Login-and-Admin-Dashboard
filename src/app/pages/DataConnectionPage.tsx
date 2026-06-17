@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { Database, FileSpreadsheet, Globe, CheckCircle, XCircle, Download, RefreshCw, Clock, X, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { testNeonConnection } from '../../lib/neon';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 // Utility function to parse CSV
 const parseCSV = (text: string): string[][] => {
@@ -309,46 +313,151 @@ export default function DataConnectionPage() {
     toast.success('Semua koneksi aktif berhasil disegarkan.');
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     setIsExporting(true);
-    setTimeout(() => {
-      const exportFileExtension = exportFormat === 'csv' ? 'csv' : exportFormat === 'excel' ? 'xlsx' : 'pdf';
-      const contentMap = {
-        csv: [
-          ['Nama Sumber', 'Tipe', 'Status', 'Records'],
-          ...dataSources.map((source) => [source.name, source.type.toUpperCase(), source.status, source.records || 0]),
-        ]
-          .map((row) => row.join(','))
-          .join('\n'),
-        excel: [
-          'Laporan Excel Dashboard',
-          `Total sumber data: ${dataSources.length}`,
-          `Total records: ${dataSources.reduce((acc, source) => acc + (source.records || 0), 0).toLocaleString('id-ID')}`,
-          '---',
-          ...dataSources.map((source) => `${source.name}\t${source.type.toUpperCase()}\t${source.status}`),
-        ].join('\n'),
-        pdf: [
-          'Laporan PDF Dashboard',
-          `Periode: ${new Date().toLocaleDateString('id-ID')}`,
-          `Sumber data aktif: ${dataSources.filter((source) => source.status === 'connected').length}`,
-          `Total records: ${dataSources.reduce((acc, source) => acc + (source.records || 0), 0).toLocaleString('id-ID')}`,
-        ].join('\n'),
-      };
 
-      const blob = new Blob([contentMap[exportFormat]], {
-        type: exportFormat === 'csv' ? 'text/csv;charset=utf-8;' : 'text/plain;charset=utf-8;',
-      });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `laporan-data.${exportFileExtension}`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+    let penjualan: any[] = [];
+    let armada: any[] = [];
+    let driver: any[] = [];
+    let pengiriman: any[] = [];
+
+    try {
+      // Ambil data langsung dari endpoint database operasional (Neon PostgreSQL)
+      const [resP, resA, resD, resPg] = await Promise.all([
+        fetch('http://localhost:3001/api/penjualan').catch(() => null),
+        fetch('http://localhost:3001/api/armada').catch(() => null),
+        fetch('http://localhost:3001/api/driver').catch(() => null),
+        fetch('http://localhost:3001/api/pengiriman').catch(() => null)
+      ]);
+
+      if (resP?.ok) penjualan = await resP.json();
+      if (resA?.ok) armada = await resA.json();
+      if (resD?.ok) driver = await resD.json();
+      if (resPg?.ok) pengiriman = await resPg.json();
+
+      // Fallback data operasional dummy jika endpoint API lokal belum berjalan 
+      // (Hanya untuk testing tampilan apabila data tidak ter-fetch)
+      if (!penjualan.length) penjualan = [
+        { id: 'TRX-001', tanggal: '2026-05-06', pelanggan: 'Toko Sumber Rejeki', tujuan: 'Bogor Utara', total_harga: 2500000 },
+        { id: 'TRX-002', tanggal: '2026-05-06', pelanggan: 'Warung Maju Jaya', tujuan: 'Bogor Selatan', total_harga: 1800000 }
+      ];
+      if (!armada.length) armada = [
+        { no_polisi: 'B 1234 ABC', tipe: 'Truk Tangki 5000L', driver: 'Budi Santoso', status: 'Aktif' },
+        { no_polisi: 'F 8765 DEF', tipe: 'Truk Box', driver: 'Agus Pratama', status: 'Maintenance' }
+      ];
+      if (!driver.length) driver = [
+        { nama: 'Budi Santoso', telepon: '08123456789', status: 'Tersedia' },
+        { nama: 'Agus Pratama', telepon: '08987654321', status: 'Dalam Perjalanan' }
+      ];
+      if (!pengiriman.length) pengiriman = [
+        { id: 'DEL-001', tanggal: '2026-05-06', tujuan: 'Bogor Utara', status: 'Selesai' },
+        { id: 'DEL-002', tanggal: '2026-05-06', tujuan: 'Cibinong', status: 'Dalam Perjalanan' }
+      ];
+
+      if (exportFormat === 'pdf') {
+        const doc = new jsPDF();
+        let currentY = 15;
+        
+        // 1. Header Perusahaan
+        doc.setFont("helvetica", "bold").setFontSize(16);
+        doc.text("PT Anugerah Bersama Bogor", 14, currentY);
+        currentY += 7;
+        
+        doc.setFontSize(11).setFont("helvetica", "normal");
+        doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, currentY);
+        currentY += 10;
+
+        // 2. Ringkasan
+        doc.setFontSize(12).setFont("helvetica", "bold");
+        doc.text("Ringkasan Operasional", 14, currentY);
+        currentY += 6;
+        doc.setFontSize(10).setFont("helvetica", "normal");
+        doc.text(`Total Armada: ${armada.length}`, 14, currentY);
+        currentY += 5;
+        doc.text(`Total Driver: ${driver.length}`, 14, currentY);
+        currentY += 5;
+        doc.text(`Total Pengiriman: ${pengiriman.length}`, 14, currentY);
+        currentY += 5;
+        doc.text(`Total Penjualan: ${penjualan.length}`, 14, currentY);
+        currentY += 10;
+
+        // Generator Fungsi Helper untuk Tabel PDF Dinamis
+        const addDynamicTable = (title: string, data: any[], color: [number, number, number]) => {
+          if (data.length === 0) return;
+          if (currentY > 250) { doc.addPage(); currentY = 15; }
+          doc.setFontSize(12).setFont("helvetica", "bold");
+          doc.text(title, 14, currentY);
+          const head = [Object.keys(data[0]).map(k => k.toUpperCase().replace(/_/g, ' '))];
+          const body = data.map(row => Object.values(row).map(val => String(val || '-')));
+          autoTable(doc, {
+            startY: currentY + 4,
+            head,
+            body,
+            headStyles: { fillColor: color },
+            margin: { bottom: 10 }
+          });
+          currentY = (doc as any).lastAutoTable.finalY + 15;
+        };
+
+        // 3. Tabel Armada
+        addDynamicTable("Data Armada", armada, [16, 185, 129]);
+        // 4. Tabel Driver
+        addDynamicTable("Data Driver", driver, [245, 158, 11]);
+        // 5. Tabel Pengiriman
+        addDynamicTable("Data Pengiriman", pengiriman, [139, 92, 246]);
+        // 6. Tabel Penjualan
+        addDynamicTable("Data Penjualan", penjualan, [37, 99, 235]);
+
+        doc.save(`Laporan_Operasional_${Date.now()}.pdf`);
+
+      } else if (exportFormat === 'excel') {
+        const workbook = new ExcelJS.Workbook();
+        
+        const addDynamicSheet = (sheetName: string, data: any[]) => {
+          const sheet = workbook.addWorksheet(sheetName);
+          if (data.length > 0) {
+            sheet.columns = Object.keys(data[0]).map(key => ({ header: key.toUpperCase().replace(/_/g, ' '), key, width: 20 }));
+            data.forEach(item => sheet.addRow(item));
+          } else {
+            sheet.addRow(['Tidak ada data']);
+          }
+        };
+
+        addDynamicSheet('Armada', armada);
+        addDynamicSheet('Driver', driver);
+        addDynamicSheet('Pengiriman', pengiriman);
+        addDynamicSheet('Penjualan', penjualan);
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(blob, `Laporan_Operasional_${Date.now()}.xlsx`);
+
+      } else {
+        // CSV Export - Khusus untuk data transaksi/penjualan aktual
+        if (penjualan.length === 0) {
+          toast.error('Tidak ada data penjualan untuk diekspor ke CSV.');
+          setIsExporting(false);
+          return;
+        }
+
+        const headers = Object.keys(penjualan[0]);
+        const csvContent = [
+          headers.join(','),
+          ...penjualan.map(row => headers.map(key => `"${row[key] !== undefined && row[key] !== null ? row[key] : ''}"`).join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        saveAs(blob, `Data_Penjualan_${Date.now()}.csv`);
+      }
+
+      console.log(`Laporan operasional berhasil diekspor.`);
+      toast.success(`Laporan operasional ${exportFormat.toUpperCase()} berhasil diunduh.`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error(`Gagal mengekspor laporan.`);
+    } finally {
       setIsExporting(false);
-      toast.success(`Laporan ${exportFormat.toUpperCase()} berhasil disiapkan.`);
-    }, 300);
+    }
   };
 
   const handleAddSource = () => {

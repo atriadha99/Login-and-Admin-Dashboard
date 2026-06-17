@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { User, Star, TrendingUp, Award, Phone, MapPin } from 'lucide-react';
+import { User, Star, TrendingUp, Award, Phone, MapPin, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner';
 
@@ -41,7 +41,23 @@ export default function DriverPage() {
     }
   }, [navigate]);
 
-  const handleAddDriver = () => {
+  const fetchDrivers = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/driver');
+      if (res.ok) {
+        const data = await res.json();
+        setDrivers(data);
+      }
+    } catch (error) {
+      console.log('API backend belum menyala, menggunakan data lokal (mock).');
+    }
+  };
+
+  useEffect(() => {
+    fetchDrivers();
+  }, []);
+
+  const handleAddDriver = async () => {
     if (!newDriver.name.trim() || !newDriver.phone.trim()) {
       toast.error('Nama lengkap dan nomor HP wajib diisi.');
       return;
@@ -59,10 +75,39 @@ export default function DriverPage() {
       revenue: 0,
       joinDate: new Date().toISOString().split('T')[0],
     };
-    setDrivers((prev) => [driver, ...prev]);
+
+    try {
+      const res = await fetch('http://localhost:3001/api/driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(driver)
+      });
+      if (res.ok) {
+        toast.success(`Driver ${driver.name} berhasil ditambahkan ke database.`);
+        fetchDrivers();
+      } else throw new Error('API Error');
+    } catch (error) {
+      setDrivers((prev) => [driver, ...prev]);
+      toast.success(`Driver ditambahkan secara lokal (API offline).`);
+    }
+    
     setShowAddModal(false);
     setNewDriver({ name: '', phone: '', vehicle: '' });
-    toast.success(`Driver ${driver.name} berhasil ditambahkan.`);
+  };
+
+  const handleDeleteDriver = async (id: string, name: string) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus driver ${name}?`)) {
+      try {
+        const res = await fetch(`http://localhost:3001/api/driver/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          toast.success('Data driver berhasil dihapus dari database.');
+          fetchDrivers();
+        } else throw new Error('API Error');
+      } catch (error) {
+        setDrivers((prev) => prev.filter((d) => d.id !== id));
+        toast.success('Data dihapus secara lokal (API offline).');
+      }
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -193,12 +238,13 @@ export default function DriverPage() {
                 <th className="text-right text-xs font-semibold text-gray-600 px-6 py-4">Total Trip</th>
                 <th className="text-right text-xs font-semibold text-gray-600 px-6 py-4">Selesai</th>
                 <th className="text-right text-xs font-semibold text-gray-600 px-6 py-4">Pendapatan</th>
+                <th className="text-center text-xs font-semibold text-gray-600 px-6 py-4">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {drivers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={9} className="px-6 py-10 text-center text-sm text-gray-500">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <svg className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -245,6 +291,11 @@ export default function DriverPage() {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
                       Rp {(driver.revenue / 1000000).toFixed(1)}M
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button onClick={() => handleDeleteDriver(driver.id, driver.name)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Hapus">
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))

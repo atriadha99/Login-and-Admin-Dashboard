@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Truck, Wrench, CheckCircle, AlertTriangle, Calendar } from 'lucide-react';
+import { Truck, Wrench, CheckCircle, AlertTriangle, Calendar, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Vehicle = {
@@ -31,7 +31,23 @@ export default function ArmadaPage() {
     }
   }, [navigate]);
 
-  const handleAddVehicle = () => {
+  const fetchVehicles = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/armada');
+      if (res.ok) {
+        const data = await res.json();
+        setVehicles(data);
+      }
+    } catch (error) {
+      console.log('API backend belum menyala, menggunakan data lokal (mock).');
+    }
+  };
+
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
+  const handleAddVehicle = async () => {
     if (!newVehicle.plateNumber || !newVehicle.type) {
       toast.error('Nomor polisi dan tipe kendaraan wajib diisi.');
       return;
@@ -48,28 +64,66 @@ export default function ArmadaPage() {
       totalTrips: 0,
       mileage: 0,
     };
-    setVehicles([...vehicles, vehicle]);
+
+    try {
+      const res = await fetch('http://localhost:3001/api/armada', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vehicle)
+      });
+      if (res.ok) {
+        toast.success(`Kendaraan ${vehicle.plateNumber} berhasil ditambahkan ke database.`);
+        fetchVehicles();
+      } else throw new Error('API Error');
+    } catch (error) {
+      setVehicles([...vehicles, vehicle]);
+      toast.success(`Kendaraan ditambahkan secara lokal (API offline).`);
+    }
+    
     setShowAddModal(false);
     setNewVehicle({ plateNumber: '', type: '', driver: '' });
-    toast.success(`Kendaraan ${vehicle.plateNumber} berhasil ditambahkan.`);
   };
 
-  const handleScheduleService = (vehicleId: string) => {
-    setVehicles((prev) =>
-      prev.map((vehicle) =>
-        vehicle.id === vehicleId
-          ? {
-              ...vehicle,
-              status: 'maintenance',
-              lastService: new Date().toISOString().split('T')[0],
-              nextService: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            }
-          : vehicle
-      )
-    );
+  const handleScheduleService = async (vehicleId: string) => {
+    const vehicle = vehicles.find((v) => v.id === vehicleId);
+    if (!vehicle) return;
 
-    const scheduledVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId);
-    toast.success(`Jadwal service untuk ${scheduledVehicle?.plateNumber || 'kendaraan'} berhasil dikirim ke bengkel.`);
+    const updatedVehicle = {
+      ...vehicle,
+      status: 'maintenance' as const,
+      lastService: new Date().toISOString().split('T')[0],
+      nextService: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    };
+
+    try {
+      const res = await fetch(`http://localhost:3001/api/armada/${vehicleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedVehicle)
+      });
+      if (res.ok) {
+        toast.success(`Jadwal service untuk ${vehicle.plateNumber} berhasil diupdate ke database.`);
+        fetchVehicles();
+      } else throw new Error('API Error');
+    } catch (error) {
+      setVehicles((prev) => prev.map((v) => v.id === vehicleId ? updatedVehicle : v));
+      toast.success(`Jadwal service diperbarui secara lokal (API offline).`);
+    }
+  };
+
+  const handleDeleteVehicle = async (id: string, plateNumber: string) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus kendaraan ${plateNumber}?`)) {
+      try {
+        const res = await fetch(`http://localhost:3001/api/armada/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          toast.success('Data kendaraan berhasil dihapus dari database.');
+          fetchVehicles();
+        } else throw new Error('API Error');
+      } catch (error) {
+        setVehicles((prev) => prev.filter((v) => v.id !== id));
+        toast.success('Data dihapus secara lokal (API offline).');
+      }
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -183,12 +237,13 @@ export default function ArmadaPage() {
                 <th className="text-left text-xs font-semibold text-gray-600 px-6 py-4">Service Berikutnya</th>
                 <th className="text-right text-xs font-semibold text-gray-600 px-6 py-4">Total Trip</th>
                 <th className="text-right text-xs font-semibold text-gray-600 px-6 py-4">Km Tempuh</th>
+                <th className="text-center text-xs font-semibold text-gray-600 px-6 py-4">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={9} className="px-6 py-10 text-center text-sm text-gray-500">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <svg className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -223,6 +278,11 @@ export default function ArmadaPage() {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
                       {vehicle.mileage.toLocaleString('id-ID')} km
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button onClick={() => handleDeleteVehicle(vehicle.id, vehicle.plateNumber)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Hapus">
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))

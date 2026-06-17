@@ -81,6 +81,22 @@ export default function PenjualanPage() {
     }
   }, [navigate]);
 
+  const fetchTransactions = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/penjualan');
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(data);
+      }
+    } catch (error) {
+      console.log('API backend belum menyala, menggunakan data lokal (mock).');
+    }
+  };
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
   const totalSales = monthlyData.reduce((acc, item) => acc + item.penjualan, 0);
   const avgSales = totalSales / monthlyData.length;
   const growth = ((monthlyData[monthlyData.length - 1].penjualan - monthlyData[0].penjualan) / monthlyData[0].penjualan) * 100;
@@ -107,42 +123,77 @@ export default function PenjualanPage() {
     setEditingId(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.customer || !formData.amount || !formData.date || !formData.region) {
       toast.error('Semua field harus diisi.');
       return;
     }
 
     if (editingId) {
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === editingId
-            ? { ...t, customer: formData.customer, amount: parseInt(formData.amount), date: formData.date, region: formData.region }
-            : t
-        )
-      );
-      toast.success('Data transaksi berhasil diperbarui.');
+      const updatedData = {
+        customer: formData.customer,
+        amount: parseInt(formData.amount),
+        date: formData.date,
+        region: formData.region,
+      };
+
+      try {
+        const res = await fetch(`http://localhost:3001/api/penjualan/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedData)
+        });
+        if (res.ok) {
+          toast.success('Data transaksi berhasil diperbarui.');
+          fetchTransactions(); // Refresh data aktual
+        } else throw new Error('API Error');
+      } catch (error) {
+        setTransactions((prev) => prev.map((t) => (t.id === editingId ? { ...t, ...updatedData } : t)));
+        toast.success('Data diperbarui secara lokal (API offline).');
+      }
     } else {
       const newId = `TRX-${String(transactions.length + 1).padStart(3, '0')}`;
-      setTransactions((prev) => [
-        ...prev,
-        {
-          id: newId,
-          customer: formData.customer,
-          amount: parseInt(formData.amount),
-          date: formData.date,
-          region: formData.region,
-        },
-      ]);
-      toast.success('Data transaksi berhasil ditambahkan.');
+      const newData = {
+        id: newId,
+        customer: formData.customer,
+        amount: parseInt(formData.amount),
+        date: formData.date,
+        region: formData.region,
+      };
+
+      try {
+        const res = await fetch('http://localhost:3001/api/penjualan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newData)
+        });
+        
+        if (res.ok) {
+          toast.success('Data transaksi berhasil ditambahkan ke database.');
+          fetchTransactions();
+        } else {
+          throw new Error('API Response Error');
+        }
+      } catch (error) {
+        setTransactions((prev) => [...prev, newData]);
+        toast.success('Data disimpan secara lokal (API offline).');
+      }
     }
     handleCloseModal();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) {
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
-      toast.success('Data transaksi berhasil dihapus.');
+      try {
+        const res = await fetch(`http://localhost:3001/api/penjualan/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          toast.success('Data transaksi berhasil dihapus.');
+          fetchTransactions();
+        } else throw new Error('API Error');
+      } catch (error) {
+        setTransactions((prev) => prev.filter((t) => t.id !== id));
+        toast.success('Data dihapus secara lokal (API offline).');
+      }
     }
   };
 
@@ -655,4 +706,3 @@ export default function PenjualanPage() {
     </div>
   );
 }
-
