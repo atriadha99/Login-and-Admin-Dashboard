@@ -8,45 +8,38 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'Admin' | 'Pemimpin'>('Admin');
+  const [role, setRole] = useState<'Admin' | 'Pemimpin' | 'Dispatcher'>('Admin');
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const credentials: Record<'Admin' | 'Pemimpin', Array<{ email: string; password: string; name: string }>> = {
-      Admin: [
-        { email: 'admin@ptabb.id', password: 'admin123', name: 'Admin User' },
-        { email: 'dosen@unpam.id', password: 'dosenunpam', name: 'Dosen UNPAM' }
-      ],
-      Pemimpin: [
-        { email: 'pemimpin@ptabb.id', password: 'pemimpin123', name: 'Pemimpin' }
-      ],
-    };
-
-    // Ambil data user yang mendaftar via form Register (jika ada)
-    const registeredUsers = JSON.parse(window.localStorage.getItem('abb-registered-users') || '[]');
-    
-    // Gabungkan user bawaan dengan user hasil register yang rolenya sesuai
-    const validUsers = [
-      ...credentials[role],
-      ...registeredUsers.filter((u: any) => u.role === role)
-    ];
-
-    const currentUser = validUsers.find(u => u.email === email.trim().toLowerCase() && u.password === password);
-    
-    if (!currentUser) {
-      toast.error('Email atau password tidak cocok untuk peran yang dipilih.');
-      return;
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, role })
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Email atau password salah');
+      }
+      
+      const data = await res.json();
+      window.localStorage.setItem('abb-role', data.role);
+      window.localStorage.setItem('abb-user', data.name);
+      if (data.token) {
+        window.localStorage.setItem('abb-token', data.token);
+      }
+      toast.success('Login berhasil. Mengalihkan ke dashboard...');
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal login. Pastikan API backend menyala.');
     }
-
-    window.localStorage.setItem('abb-role', role);
-    window.localStorage.setItem('abb-user', currentUser.name);
-    toast.success('Login berhasil. Mengalihkan ke dashboard...');
-    navigate('/dashboard');
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!name.trim() || !email.trim() || !password) {
@@ -54,28 +47,23 @@ export default function LoginPage() {
       return;
     }
 
-    const registeredUsers = JSON.parse(window.localStorage.getItem('abb-registered-users') || '[]');
-    
-    // Cek apakah email sudah terdaftar
-    const isEmailExists = registeredUsers.some((u: any) => u.email === email.trim().toLowerCase()) || 
-                          email.trim().toLowerCase() === 'admin@ptabb.id' || 
-                          email.trim().toLowerCase() === 'dosen@unpam.id';
-
-    if (isEmailExists) {
-      toast.error('Email ini sudah terdaftar. Silakan gunakan email lain.');
-      return;
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password, role: 'Dispatcher' })
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Gagal registrasi');
+      }
+      
+      toast.success('Registrasi berhasil! Silakan login dengan akun baru Anda.');
+      setIsLogin(true);
+    } catch (error: any) {
+      toast.error(error.message || 'Registrasi gagal. Pastikan API backend menyala.');
     }
-
-    const newUser = {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password,
-      role
-    };
-
-    window.localStorage.setItem('abb-registered-users', JSON.stringify([...registeredUsers, newUser]));
-    toast.success('Registrasi berhasil! Silakan login dengan akun baru Anda.');
-    setIsLogin(true); // Kembali ke mode login
   };
 
   const handleForgotPassword = () => {
@@ -151,20 +139,23 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                {isLogin ? 'Login Sebagai' : 'Daftar Sebagai'}
-              </label>
-              <select
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value as 'Admin' | 'Pemimpin')}
-                className="w-full rounded-lg border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Admin">Admin</option>
-                <option value="Pemimpin">Pemimpin</option>
-              </select>
-            </div>
+            {isLogin && (
+              <div>
+                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+                  Login Sebagai
+                </label>
+                <select
+                  id="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as 'Admin' | 'Pemimpin' | 'Dispatcher')}
+                  className="w-full rounded-lg border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Admin">Admin</option>
+                  <option value="Pemimpin">Pemimpin</option>
+                  <option value="Dispatcher">Dispatcher</option>
+                </select>
+              </div>
+            )}
 
             <button
               type="submit"

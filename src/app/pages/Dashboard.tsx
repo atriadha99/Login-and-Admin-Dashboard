@@ -6,28 +6,19 @@ import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-// Mock data
-const monthlyData = [
-  { month: 'Jan', penjualan: 0, distribusi: 0 },
-  { month: 'Feb', penjualan: 0, distribusi: 0 },
-  { month: 'Mar', penjualan: 0, distribusi: 0 },
-  { month: 'Apr', penjualan: 0, distribusi: 0 },
-  { month: 'Mei', penjualan: 0, distribusi: 0 },
-  { month: 'Jun', penjualan: 0, distribusi: 0 },
-];
-
-const annualData = monthlyData;
-
-const recentTransactions: any[] = [];
-
-const forecastData: any[] = [];
-
 export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<'6M' | '1Y'>('6M');
   const [userRole, setUserRole] = useState<'Admin' | 'Pemimpin'>('Admin');
   const navigate = useNavigate();
+  const [dashboardData, setDashboardData] = useState({
+    monthlyData: [],
+    annualData: [],
+    recentTransactions: [],
+    forecastData: [],
+    kpi: { totalPenjualan: 0, labaKotor: 0, jumlahTransaksi: 0, rataRataNilai: 0 }
+  });
 
-  const rawData = selectedPeriod === '6M' ? monthlyData : annualData;
+  const rawData = selectedPeriod === '6M' ? dashboardData.monthlyData : dashboardData.annualData;
   const chartData = rawData && rawData.length > 0 ? rawData : [{ month: 'Jan', penjualan: 0, distribusi: 0 }];
   const periodLabel = selectedPeriod === '6M' ? '6 bulan terakhir' : '1 tahun terakhir';
 
@@ -36,7 +27,20 @@ export default function Dashboard() {
     if (savedRole === 'Pemimpin' || savedRole === 'Admin') {
       setUserRole(savedRole);
     }
+    fetchDashboardData();
   }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const res = await fetch('/api/dashboard');
+      if (res.ok) {
+        const data = await res.json();
+        setDashboardData(data);
+      }
+    } catch (error) {
+      console.error('Gagal mengambil data dashboard:', error);
+    }
+  };
 
   const handleExportSummary = () => {
     const csvContent = [
@@ -68,34 +72,8 @@ export default function Dashboard() {
   };
 
   const exportDashboardVisual = async (format: 'png' | 'pdf' = 'png') => {
-    const element = document.getElementById('dashboard-content');
-    if (!element) return toast.error("Elemen dashboard tidak ditemukan");
-
-    try {
-      // Poin Laporan No 7: Capture Visual Dashboard Skala Tinggi
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true });
-      
-      if (format === 'png') {
-        const image = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = image;
-        link.download = `dashboard-presentasi-${Date.now()}.png`;
-        link.click();
-        toast.success('Laporan PNG berhasil diunduh.');
-      } else if (format === 'pdf') {
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('l', 'mm', 'a4');
-        const imgWidth = 297;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-        pdf.save(`dashboard-presentasi-${Date.now()}.pdf`);
-        toast.success('Laporan PDF berhasil diunduh.');
-      }
-    } catch (error) {
-      console.error("Gagal mengekstrak visual dashboard:", error);
-      toast.error("Gagal mengekstrak visual dashboard.");
-    }
+    toast.info('Fitur ekspor visual telah dipindahkan ke halaman Filter & Drill-Down.');
+    navigate('/dashboard/filter');
   };
 
   return (
@@ -110,7 +88,7 @@ export default function Dashboard() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+12.5%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Total Penjualan</h3>
-          <p className="text-3xl font-bold text-gray-900">Rp 0</p>
+          <p className="text-3xl font-bold text-gray-900">Rp {(dashboardData.kpi.totalPenjualan / 1000000).toFixed(1)}M</p>
           <p className="text-xs text-gray-500 mt-2">Bulan ini</p>
         </div>
 
@@ -122,7 +100,7 @@ export default function Dashboard() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+8.2%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Laba Kotor</h3>
-          <p className="text-3xl font-bold text-gray-900">Rp 0</p>
+          <p className="text-3xl font-bold text-gray-900">Rp {(dashboardData.kpi.labaKotor / 1000000).toFixed(1)}M</p>
           <p className="text-xs text-gray-500 mt-2">Margin 0%</p>
         </div>
 
@@ -134,7 +112,7 @@ export default function Dashboard() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+15.3%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Jumlah Transaksi</h3>
-          <p className="text-3xl font-bold text-gray-900">0</p>
+          <p className="text-3xl font-bold text-gray-900">{dashboardData.kpi.jumlahTransaksi}</p>
           <p className="text-xs text-gray-500 mt-2">Bulan ini</p>
         </div>
 
@@ -146,7 +124,7 @@ export default function Dashboard() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+5.7%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Rata-rata Nilai</h3>
-          <p className="text-3xl font-bold text-gray-900">Rp 0</p>
+          <p className="text-3xl font-bold text-gray-900">Rp {(dashboardData.kpi.rataRataNilai / 1000000).toFixed(1)}M</p>
           <p className="text-xs text-gray-500 mt-2">Per transaksi</p>
         </div>
       </div>
@@ -168,18 +146,11 @@ export default function Dashboard() {
               <>
                 <button
                   type="button"
-                      onClick={() => exportDashboardVisual('pdf')}
-                  className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  onClick={() => navigate('/dashboard/filter')}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
                 >
-                      <FileText size={16} />
-                      Ekspor Visual (PDF)
-                </button>
-                <button
-                  type="button"
-                      onClick={() => exportDashboardVisual('png')}
-                  className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                      Ekspor Visual (PNG)
+                  <Filter size={16} />
+                  Pergi ke Filter & Drill-Down untuk Laporan
                 </button>
               </>
             ) : (
@@ -280,7 +251,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recentTransactions.length === 0 ? (
+                {dashboardData.recentTransactions.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-8 text-center text-sm text-gray-500">
                       <div className="flex flex-col items-center justify-center space-y-2">
@@ -292,7 +263,7 @@ export default function Dashboard() {
                     </td>
                   </tr>
                 ) : (
-                  recentTransactions.map((transaction) => (
+                  dashboardData.recentTransactions.map((transaction: any) => (
                     <tr key={transaction.id} className="border-b border-gray-100">
                       <td className="py-3 text-sm text-gray-600">{transaction.id}</td>
                       <td className="py-3 text-sm text-gray-900">{transaction.customer}</td>
@@ -312,12 +283,12 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Forecasting Penjualan</h3>
           <div className="space-y-4">
-            {forecastData.length === 0 ? (
+            {dashboardData.forecastData.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                 <p>Data belum memadai untuk melakukan forecasting.</p>
               </div>
             ) : (
-              forecastData.map((forecast, index) => (
+              dashboardData.forecastData.map((forecast: any, index: number) => (
                 <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{forecast.period}</p>
@@ -343,7 +314,7 @@ export default function Dashboard() {
           </div>
           <div className="mt-6">
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={forecastData.length > 0 ? forecastData : [{ period: '...', predicted: 0 }]}>
+              <BarChart data={dashboardData.forecastData.length > 0 ? dashboardData.forecastData : [{ period: '...', predicted: 0 }]}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="period" stroke="#6b7280" tick={{ fontSize: 12 }} />
                 <YAxis stroke="#6b7280" tickFormatter={(value) => `${value / 1000000}M`} tick={{ fontSize: 12 }} />

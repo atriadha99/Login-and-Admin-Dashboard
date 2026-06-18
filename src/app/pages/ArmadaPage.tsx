@@ -15,11 +15,9 @@ type Vehicle = {
   mileage: number;
 };
 
-const initialVehicles: Vehicle[] = [];
-
 export default function ArmadaPage() {
   const navigate = useNavigate();
-  const [vehicles, setVehicles] = useState(initialVehicles);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newVehicle, setNewVehicle] = useState({ plateNumber: '', type: '', driver: '' });
 
@@ -33,13 +31,13 @@ export default function ArmadaPage() {
 
   const fetchVehicles = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/armada');
+      const res = await fetch('/api/armada');
       if (res.ok) {
         const data = await res.json();
         setVehicles(data);
       }
     } catch (error) {
-      console.log('API backend belum menyala, menggunakan data lokal (mock).');
+      toast.error('Gagal mengambil data armada.');
     }
   };
 
@@ -66,7 +64,7 @@ export default function ArmadaPage() {
     };
 
     try {
-      const res = await fetch('http://localhost:3001/api/armada', {
+      const res = await fetch('/api/armada', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(vehicle)
@@ -76,8 +74,7 @@ export default function ArmadaPage() {
         fetchVehicles();
       } else throw new Error('API Error');
     } catch (error) {
-      setVehicles([...vehicles, vehicle]);
-      toast.success(`Kendaraan ditambahkan secara lokal (API offline).`);
+      toast.error('Gagal menambah data armada.');
     }
     
     setShowAddModal(false);
@@ -96,7 +93,7 @@ export default function ArmadaPage() {
     };
 
     try {
-      const res = await fetch(`http://localhost:3001/api/armada/${vehicleId}`, {
+      const res = await fetch(`/api/armada/${vehicleId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedVehicle)
@@ -106,22 +103,20 @@ export default function ArmadaPage() {
         fetchVehicles();
       } else throw new Error('API Error');
     } catch (error) {
-      setVehicles((prev) => prev.map((v) => v.id === vehicleId ? updatedVehicle : v));
-      toast.success(`Jadwal service diperbarui secara lokal (API offline).`);
+      toast.error('Gagal menjadwalkan service.');
     }
   };
 
   const handleDeleteVehicle = async (id: string, plateNumber: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus kendaraan ${plateNumber}?`)) {
       try {
-        const res = await fetch(`http://localhost:3001/api/armada/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/armada/${id}`, { method: 'DELETE' });
         if (res.ok) {
           toast.success('Data kendaraan berhasil dihapus dari database.');
           fetchVehicles();
         } else throw new Error('API Error');
       } catch (error) {
-        setVehicles((prev) => prev.filter((v) => v.id !== id));
-        toast.success('Data dihapus secara lokal (API offline).');
+        toast.error('Gagal menghapus data armada.');
       }
     }
   };

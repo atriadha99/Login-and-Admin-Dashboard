@@ -1,63 +1,31 @@
+import { useState, useEffect } from 'react';
 import { TrendingUp, AlertTriangle, CheckCircle, Calendar, BarChart3 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
-
-const historicalData = [
-  { month: 'Jan', actual: 45000000, predicted: 43000000 },
-  { month: 'Feb', actual: 52000000, predicted: 50000000 },
-  { month: 'Mar', actual: 48000000, predicted: 49000000 },
-  { month: 'Apr', actual: 61000000, predicted: 58000000 },
-  { month: 'Mei', actual: 55000000, predicted: 56000000 },
-  { month: 'Jun', actual: 67000000, predicted: 65000000 },
-];
-
-const forecastData = [
-  { month: 'Jul', predicted: 72000000, lower: 68000000, upper: 76000000, confidence: 95 },
-  { month: 'Agu', predicted: 69000000, lower: 64000000, upper: 74000000, confidence: 92 },
-  { month: 'Sep', predicted: 75000000, lower: 69000000, upper: 81000000, confidence: 88 },
-  { month: 'Okt', predicted: 78000000, lower: 71000000, upper: 85000000, confidence: 85 },
-  { month: 'Nov', predicted: 82000000, lower: 74000000, upper: 90000000, confidence: 82 },
-  { month: 'Des', predicted: 88000000, lower: 78000000, upper: 98000000, confidence: 78 },
-];
-
-const seasonalTrends = [
-  { quarter: 'Q1 2026', value: 145000000, growth: 8.5 },
-  { quarter: 'Q2 2026', value: 183000000, growth: 12.3 },
-  { quarter: 'Q3 2026 (Pred)', value: 216000000, growth: 15.2 },
-  { quarter: 'Q4 2026 (Pred)', value: 248000000, growth: 14.8 },
-];
-
-const keyIndicators = [
-  {
-    metric: 'Prediksi Penjualan Q3',
-    value: 'Rp 216M',
-    change: '+18.0%',
-    status: 'positive',
-    confidence: 'High',
-  },
-  {
-    metric: 'Prediksi Penjualan Q4',
-    value: 'Rp 248M',
-    change: '+14.8%',
-    status: 'positive',
-    confidence: 'Medium',
-  },
-  {
-    metric: 'Target Revenue 2026',
-    value: 'Rp 792M',
-    change: '+12.5%',
-    status: 'on-track',
-    confidence: 'High',
-  },
-  {
-    metric: 'Pertumbuhan YoY',
-    value: '+15.2%',
-    change: 'vs 2025',
-    status: 'positive',
-    confidence: 'High',
-  },
-];
+import { toast } from 'sonner';
 
 export default function ForecastingPage() {
+  const [data, setData] = useState({
+    historicalData: [],
+    forecastData: [],
+    seasonalTrends: [],
+    keyIndicators: []
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch('/api/forecasting');
+        if (res.ok) {
+          const result = await res.json();
+          setData(result);
+        }
+      } catch (error) {
+        toast.error('Gagal mengambil data forecasting.');
+      }
+    };
+    fetchData();
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -68,7 +36,7 @@ export default function ForecastingPage() {
 
       {/* Key Indicators */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {keyIndicators.map((indicator, index) => (
+        {data.keyIndicators.map((indicator: any, index) => (
           <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
@@ -112,7 +80,7 @@ export default function ForecastingPage() {
           <p className="text-sm text-gray-600 mt-1">Perbandingan data aktual vs prediksi 6 bulan terakhir</p>
         </div>
         <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={historicalData}>
+          <LineChart data={data.historicalData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="month" stroke="#6b7280" />
             <YAxis stroke="#6b7280" tickFormatter={(value) => `${value / 1000000}M`} />
@@ -142,7 +110,7 @@ export default function ForecastingPage() {
           <p className="text-sm text-gray-600 mt-1">Prediksi dengan confidence interval</p>
         </div>
         <ResponsiveContainer width="100%" height={350}>
-          <AreaChart data={forecastData}>
+          <AreaChart data={data.forecastData}>
             <defs>
               <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
@@ -181,7 +149,7 @@ export default function ForecastingPage() {
               </tr>
             </thead>
             <tbody>
-              {forecastData.map((forecast, index) => (
+              {data.forecastData.map((forecast: any, index) => (
                 <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
@@ -223,7 +191,7 @@ export default function ForecastingPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-6">Tren Seasonal (Quarterly)</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {seasonalTrends.map((trend, index) => (
+          {data.seasonalTrends.map((trend: any, index) => (
             <div key={index} className={`p-5 rounded-lg border-2 ${
               trend.quarter.includes('Pred') ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-white'
             }`}>

@@ -1,39 +1,34 @@
+import { useState, useEffect } from 'react';
 import { MapPin, TrendingUp, Truck, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-
-const distributionData = [
-  { region: 'Bogor Utara', deliveries: 156, onTime: 148, delayed: 8, distance: 45 },
-  { region: 'Bogor Selatan', deliveries: 132, onTime: 128, delayed: 4, distance: 38 },
-  { region: 'Bogor Barat', deliveries: 145, onTime: 139, delayed: 6, distance: 42 },
-  { region: 'Bogor Timur', deliveries: 118, onTime: 112, delayed: 6, distance: 35 },
-  { region: 'Cibinong', deliveries: 178, onTime: 172, delayed: 6, distance: 52 },
-  { region: 'Ciawi', deliveries: 95, onTime: 89, delayed: 6, distance: 28 },
-];
-
-const weeklyTrend = [
-  { day: 'Sen', deliveries: 142 },
-  { day: 'Sel', deliveries: 138 },
-  { day: 'Rab', deliveries: 155 },
-  { day: 'Kam', deliveries: 148 },
-  { day: 'Jum', deliveries: 162 },
-  { day: 'Sab', deliveries: 178 },
-  { day: 'Min', deliveries: 95 },
-];
-
-const deliverySchedule = [
-  { time: '06:00 - 08:00', deliveries: 45, status: 'completed' },
-  { time: '08:00 - 10:00', deliveries: 68, status: 'completed' },
-  { time: '10:00 - 12:00', deliveries: 52, status: 'in-progress' },
-  { time: '12:00 - 14:00', deliveries: 38, status: 'scheduled' },
-  { time: '14:00 - 16:00', deliveries: 42, status: 'scheduled' },
-  { time: '16:00 - 18:00', deliveries: 28, status: 'scheduled' },
-];
+import { toast } from 'sonner';
 
 export default function DistribusiPage() {
-  const totalDeliveries = distributionData.reduce((acc, item) => acc + item.deliveries, 0);
-  const totalOnTime = distributionData.reduce((acc, item) => acc + item.onTime, 0);
+  const [data, setData] = useState({
+    distributionData: [],
+    weeklyTrend: [],
+    deliverySchedule: []
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch('/api/distribusi');
+        if (res.ok) {
+          const result = await res.json();
+          setData(result);
+        }
+      } catch (error) {
+        toast.error('Gagal mengambil data distribusi.');
+      }
+    };
+    fetchData();
+  }, []);
+
+  const totalDeliveries = data.distributionData.reduce((acc: number, item: any) => acc + item.deliveries, 0);
+  const totalOnTime = data.distributionData.reduce((acc: number, item: any) => acc + item.onTime, 0);
   const onTimeRate = (totalOnTime / totalDeliveries) * 100;
-  const totalDistance = distributionData.reduce((acc, item) => acc + item.distance, 0);
+  const totalDistance = data.distributionData.reduce((acc: number, item: any) => acc + item.distance, 0);
 
   return (
     <div className="space-y-6">
@@ -95,7 +90,7 @@ export default function DistribusiPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-6">Tren Pengiriman Mingguan</h3>
         <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={weeklyTrend}>
+          <AreaChart data={data.weeklyTrend}>
             <defs>
               <linearGradient id="colorDeliveries" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
@@ -115,7 +110,7 @@ export default function DistribusiPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-6">Distribusi per Wilayah</h3>
         <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={distributionData}>
+          <BarChart data={data.distributionData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="region" stroke="#6b7280" />
             <YAxis stroke="#6b7280" />
@@ -144,7 +139,7 @@ export default function DistribusiPage() {
               </tr>
             </thead>
             <tbody>
-              {distributionData.map((region) => {
+              {data.distributionData.map((region: any) => {
                 const rate = (region.onTime / region.deliveries) * 100;
                 return (
                   <tr key={region.region} className="border-b border-gray-100 hover:bg-gray-50">
@@ -187,7 +182,7 @@ export default function DistribusiPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-6">Jadwal Pengiriman Hari Ini</h3>
         <div className="space-y-3">
-          {deliverySchedule.map((schedule, index) => (
+          {data.deliverySchedule.map((schedule: any, index) => (
             <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">

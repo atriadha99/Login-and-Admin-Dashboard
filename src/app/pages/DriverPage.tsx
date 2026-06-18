@@ -17,8 +17,6 @@ type Driver = {
   joinDate: string;
 };
 
-const initialDrivers: Driver[] = [];
-
 const performanceData = [
   { month: 'Jan', trips: 42, revenue: 16800000 },
   { month: 'Feb', trips: 38, revenue: 15200000 },
@@ -29,7 +27,7 @@ const performanceData = [
 
 export default function DriverPage() {
   const navigate = useNavigate();
-  const [drivers, setDrivers] = useState(initialDrivers);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newDriver, setNewDriver] = useState({ name: '', phone: '', vehicle: '' });
 
@@ -43,13 +41,13 @@ export default function DriverPage() {
 
   const fetchDrivers = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/driver');
+      const res = await fetch('/api/driver');
       if (res.ok) {
         const data = await res.json();
         setDrivers(data);
       }
     } catch (error) {
-      console.log('API backend belum menyala, menggunakan data lokal (mock).');
+      toast.error('Gagal mengambil data driver.');
     }
   };
 
@@ -77,7 +75,7 @@ export default function DriverPage() {
     };
 
     try {
-      const res = await fetch('http://localhost:3001/api/driver', {
+      const res = await fetch('/api/driver', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(driver)
@@ -87,8 +85,7 @@ export default function DriverPage() {
         fetchDrivers();
       } else throw new Error('API Error');
     } catch (error) {
-      setDrivers((prev) => [driver, ...prev]);
-      toast.success(`Driver ditambahkan secara lokal (API offline).`);
+      toast.error('Gagal menambah data driver.');
     }
     
     setShowAddModal(false);
@@ -98,14 +95,13 @@ export default function DriverPage() {
   const handleDeleteDriver = async (id: string, name: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus driver ${name}?`)) {
       try {
-        const res = await fetch(`http://localhost:3001/api/driver/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/driver/${id}`, { method: 'DELETE' });
         if (res.ok) {
           toast.success('Data driver berhasil dihapus dari database.');
           fetchDrivers();
         } else throw new Error('API Error');
       } catch (error) {
-        setDrivers((prev) => prev.filter((d) => d.id !== id));
-        toast.success('Data dihapus secara lokal (API offline).');
+        toast.error('Gagal menghapus data driver.');
       }
     }
   };

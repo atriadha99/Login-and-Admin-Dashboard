@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Database, FileSpreadsheet, Globe, CheckCircle, XCircle, Download, RefreshCw, Clock, X, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { testNeonConnection } from '../../lib/neon';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
 
 // Utility function to parse CSV
 const parseCSV = (text: string): string[][] => {
@@ -104,6 +99,7 @@ export default function DataConnectionPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<string[][]>([]);
   const [importSourceName, setImportSourceName] = useState('');
+  const [dbStatus, setDbStatus] = useState<any>({ tables: 0, status: 'disconnected', now: null });
 
   useEffect(() => {
     let active = true;
@@ -115,22 +111,24 @@ export default function DataConnectionPage() {
 
     const verifyConnection = async () => {
       try {
-        const result = await testNeonConnection();
+        const res = await fetch('/api/db-status');
+        const result = await res.json();
         if (!active) return;
 
+        setDbStatus(result);
         setDataSources((prev) =>
           prev.map((source) =>
             source.id === 'env-neon'
               ? {
                   ...source,
                   status: 'connected',
-                  lastSync: `Connected at ${new Date(result.now_at).toLocaleString('id-ID')}`,
+                  lastSync: `Connected at ${new Date(result.now).toLocaleString('id-ID')}`,
                   records: 1,
                 }
               : source
           )
         );
-        toast.success(`Database ENV terhubung: ${result.database_name}`);
+        toast.success(`Database ENV terhubung: ${result.database_name || 'DB'}`);
       } catch (error) {
         if (!active) return;
         setDataSources((prev) =>
@@ -190,69 +188,17 @@ export default function DataConnectionPage() {
     return dataSources.find((s) => s.id === sourceId)?.name || 'Unknown Source';
   };
 
-  const handleConnect = async (id: string) => {
-    if (id === 'env-neon') {
-      try {
-        const result = await testNeonConnection();
-        setDataSources((prev) =>
-          prev.map((source) =>
-            source.id === id
-              ? {
-                  ...source,
-                  status: 'connected',
-                  lastSync: `Connected at ${new Date(result.now_at).toLocaleString('id-ID')}`,
-                  records: 1,
-                }
-              : source
-          )
-        );
-        toast.success(`Koneksi sukses ke ${result.database_name}.`);
-      } catch (error) {
-        setDataSources((prev) =>
-          prev.map((source) =>
-            source.id === id ? { ...source, status: 'error', lastSync: 'Koneksi gagal' } : source
-          )
-        );
-        toast.error('Gagal menghubungkan database dari env.');
-      }
-      return;
-    }
-    setDataSources(
-      dataSources.map((source) =>
-        source.id === id
-          ? { ...source, status: 'connected', lastSync: new Date().toLocaleString('id-ID') }
-          : source
-      )
-    );
-    toast.success('Koneksi berhasil diaktifkan.');
-  };
-
-  const handleDisconnect = (id: string) => {
-    if (id === 'env-neon') {
-      setDataSources((prev) =>
-        prev.map((source) => (source.id === id ? { ...source, status: 'disconnected', lastSync: 'Terputus dari ENV' } : source))
-      );
-      toast.info('Koneksi ENV diputus.');
-      return;
-    }
-    setDataSources(
-      dataSources.map((source) =>
-        source.id === id ? { ...source, status: 'disconnected' } : source
-      )
-    );
-    toast.info('Koneksi diputus.');
-  };
-
   const handleSync = async (id: string) => {
     if (id === 'env-neon') {
       try {
-        const result = await testNeonConnection();
+        const res = await fetch('/api/db-status');
+        const result = await res.json();
         setDataSources((prev) =>
           prev.map((source) =>
             source.id === id
               ? {
                   ...source,
-                  lastSync: `Synced at ${new Date(result.now_at).toLocaleString('id-ID')}`,
+                  lastSync: `Synced at ${new Date(result.now).toLocaleString('id-ID')}`,
                   records: (source.records || 0) + 1,
                 }
               : source
@@ -267,7 +213,7 @@ export default function DataConnectionPage() {
     setDataSources(
       dataSources.map((source) =>
         source.id === id
-          ? { ...source, lastSync: new Date().toLocaleString('id-ID'), records: (source.records || 0) + Math.floor(Math.random() * 100) }
+          ? { ...source, lastSync: new Date().toLocaleString('id-ID') }
           : source
       )
     );
@@ -276,14 +222,17 @@ export default function DataConnectionPage() {
 
   const handleRefreshAll = async () => {
     try {
-      const result = await testNeonConnection();
+      const res = await fetch('/api/db-status');
+      const result = await res.json();
+      setDbStatus(result);
+      
       setDataSources((prev) =>
         prev.map((source) =>
           source.id === 'env-neon'
             ? {
                 ...source,
                 status: 'connected',
-                lastSync: `Refreshed at ${new Date(result.now_at).toLocaleString('id-ID')}`,
+                lastSync: `Refreshed at ${new Date(result.now).toLocaleString('id-ID')}`,
                 records: (source.records || 0) + 1,
               }
             : source
@@ -310,154 +259,6 @@ export default function DataConnectionPage() {
           : source
       )
     );
-    toast.success('Semua koneksi aktif berhasil disegarkan.');
-  };
-
-  const handleExport = async () => {
-    setIsExporting(true);
-
-    let penjualan: any[] = [];
-    let armada: any[] = [];
-    let driver: any[] = [];
-    let pengiriman: any[] = [];
-
-    try {
-      // Ambil data langsung dari endpoint database operasional (Neon PostgreSQL)
-      const [resP, resA, resD, resPg] = await Promise.all([
-        fetch('http://localhost:3001/api/penjualan').catch(() => null),
-        fetch('http://localhost:3001/api/armada').catch(() => null),
-        fetch('http://localhost:3001/api/driver').catch(() => null),
-        fetch('http://localhost:3001/api/pengiriman').catch(() => null)
-      ]);
-
-      if (resP?.ok) penjualan = await resP.json();
-      if (resA?.ok) armada = await resA.json();
-      if (resD?.ok) driver = await resD.json();
-      if (resPg?.ok) pengiriman = await resPg.json();
-
-      // Fallback data operasional dummy jika endpoint API lokal belum berjalan 
-      // (Hanya untuk testing tampilan apabila data tidak ter-fetch)
-      if (!penjualan.length) penjualan = [
-        { id: 'TRX-001', tanggal: '2026-05-06', pelanggan: 'Toko Sumber Rejeki', tujuan: 'Bogor Utara', total_harga: 2500000 },
-        { id: 'TRX-002', tanggal: '2026-05-06', pelanggan: 'Warung Maju Jaya', tujuan: 'Bogor Selatan', total_harga: 1800000 }
-      ];
-      if (!armada.length) armada = [
-        { no_polisi: 'B 1234 ABC', tipe: 'Truk Tangki 5000L', driver: 'Budi Santoso', status: 'Aktif' },
-        { no_polisi: 'F 8765 DEF', tipe: 'Truk Box', driver: 'Agus Pratama', status: 'Maintenance' }
-      ];
-      if (!driver.length) driver = [
-        { nama: 'Budi Santoso', telepon: '08123456789', status: 'Tersedia' },
-        { nama: 'Agus Pratama', telepon: '08987654321', status: 'Dalam Perjalanan' }
-      ];
-      if (!pengiriman.length) pengiriman = [
-        { id: 'DEL-001', tanggal: '2026-05-06', tujuan: 'Bogor Utara', status: 'Selesai' },
-        { id: 'DEL-002', tanggal: '2026-05-06', tujuan: 'Cibinong', status: 'Dalam Perjalanan' }
-      ];
-
-      if (exportFormat === 'pdf') {
-        const doc = new jsPDF();
-        let currentY = 15;
-        
-        // 1. Header Perusahaan
-        doc.setFont("helvetica", "bold").setFontSize(16);
-        doc.text("PT Anugerah Bersama Bogor", 14, currentY);
-        currentY += 7;
-        
-        doc.setFontSize(11).setFont("helvetica", "normal");
-        doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, currentY);
-        currentY += 10;
-
-        // 2. Ringkasan
-        doc.setFontSize(12).setFont("helvetica", "bold");
-        doc.text("Ringkasan Operasional", 14, currentY);
-        currentY += 6;
-        doc.setFontSize(10).setFont("helvetica", "normal");
-        doc.text(`Total Armada: ${armada.length}`, 14, currentY);
-        currentY += 5;
-        doc.text(`Total Driver: ${driver.length}`, 14, currentY);
-        currentY += 5;
-        doc.text(`Total Pengiriman: ${pengiriman.length}`, 14, currentY);
-        currentY += 5;
-        doc.text(`Total Penjualan: ${penjualan.length}`, 14, currentY);
-        currentY += 10;
-
-        // Generator Fungsi Helper untuk Tabel PDF Dinamis
-        const addDynamicTable = (title: string, data: any[], color: [number, number, number]) => {
-          if (data.length === 0) return;
-          if (currentY > 250) { doc.addPage(); currentY = 15; }
-          doc.setFontSize(12).setFont("helvetica", "bold");
-          doc.text(title, 14, currentY);
-          const head = [Object.keys(data[0]).map(k => k.toUpperCase().replace(/_/g, ' '))];
-          const body = data.map(row => Object.values(row).map(val => String(val || '-')));
-          autoTable(doc, {
-            startY: currentY + 4,
-            head,
-            body,
-            headStyles: { fillColor: color },
-            margin: { bottom: 10 }
-          });
-          currentY = (doc as any).lastAutoTable.finalY + 15;
-        };
-
-        // 3. Tabel Armada
-        addDynamicTable("Data Armada", armada, [16, 185, 129]);
-        // 4. Tabel Driver
-        addDynamicTable("Data Driver", driver, [245, 158, 11]);
-        // 5. Tabel Pengiriman
-        addDynamicTable("Data Pengiriman", pengiriman, [139, 92, 246]);
-        // 6. Tabel Penjualan
-        addDynamicTable("Data Penjualan", penjualan, [37, 99, 235]);
-
-        doc.save(`Laporan_Operasional_${Date.now()}.pdf`);
-
-      } else if (exportFormat === 'excel') {
-        const workbook = new ExcelJS.Workbook();
-        
-        const addDynamicSheet = (sheetName: string, data: any[]) => {
-          const sheet = workbook.addWorksheet(sheetName);
-          if (data.length > 0) {
-            sheet.columns = Object.keys(data[0]).map(key => ({ header: key.toUpperCase().replace(/_/g, ' '), key, width: 20 }));
-            data.forEach(item => sheet.addRow(item));
-          } else {
-            sheet.addRow(['Tidak ada data']);
-          }
-        };
-
-        addDynamicSheet('Armada', armada);
-        addDynamicSheet('Driver', driver);
-        addDynamicSheet('Pengiriman', pengiriman);
-        addDynamicSheet('Penjualan', penjualan);
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        saveAs(blob, `Laporan_Operasional_${Date.now()}.xlsx`);
-
-      } else {
-        // CSV Export - Khusus untuk data transaksi/penjualan aktual
-        if (penjualan.length === 0) {
-          toast.error('Tidak ada data penjualan untuk diekspor ke CSV.');
-          setIsExporting(false);
-          return;
-        }
-
-        const headers = Object.keys(penjualan[0]);
-        const csvContent = [
-          headers.join(','),
-          ...penjualan.map(row => headers.map(key => `"${row[key] !== undefined && row[key] !== null ? row[key] : ''}"`).join(','))
-        ].join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        saveAs(blob, `Data_Penjualan_${Date.now()}.csv`);
-      }
-
-      console.log(`Laporan operasional berhasil diekspor.`);
-      toast.success(`Laporan operasional ${exportFormat.toUpperCase()} berhasil diunduh.`);
-    } catch (error) {
-      console.error('Export error:', error);
-      toast.error(`Gagal mengekspor laporan.`);
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   const handleAddSource = () => {
@@ -584,8 +385,8 @@ export default function DataConnectionPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Koneksi Data & Ekspor</h2>
-          <p className="text-gray-600 mt-1">Kelola sumber data dan ekspor laporan</p>
+          <h2 className="text-2xl font-bold text-gray-900">Koneksi Database</h2>
+          <p className="text-gray-600 mt-1">Monitoring status koneksi Neon PostgreSQL</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -632,156 +433,44 @@ export default function DataConnectionPage() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                {source.status === 'connected' && (
-                  <>
-                    <button
-                      onClick={() => handleSync(source.id)}
-                      className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <RefreshCw size={16} />
-                      Sync
-                    </button>
-                    <button
-                      onClick={() => handleDisconnect(source.id)}
-                      className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
-                    >
-                      Disconnect
-                    </button>
-                  </>
-                )}
-                {source.status !== 'connected' && (
-                  <button
-                    onClick={() => handleConnect(source.id)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Connect
-                  </button>
-                )}
-              </div>
+              {source.id === 'env-neon' && (
+                 <div className="flex gap-2">
+                   <button
+                     onClick={() => handleSync(source.id)}
+                     className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                   >
+                     <RefreshCw size={16} />
+                     Test Query
+                   </button>
+                 </div>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Export Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <Download className="text-blue-600" size={20} />
-          <h3 className="text-lg font-semibold text-gray-900">Ekspor Data</h3>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">Pilih Format Ekspor</label>
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="exportFormat"
-                  value="pdf"
-                  checked={exportFormat === 'pdf'}
-                  onChange={(e) => setExportFormat(e.target.value as any)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">PDF Document</p>
-                  <p className="text-xs text-gray-500">Format laporan untuk presentasi dan arsip</p>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="exportFormat"
-                  value="excel"
-                  checked={exportFormat === 'excel'}
-                  onChange={(e) => setExportFormat(e.target.value as any)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Excel Spreadsheet</p>
-                  <p className="text-xs text-gray-500">Format data yang dapat diedit dan dianalisis</p>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="exportFormat"
-                  value="csv"
-                  checked={exportFormat === 'csv'}
-                  onChange={(e) => setExportFormat(e.target.value as any)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">CSV File</p>
-                  <p className="text-xs text-gray-500">Format universal untuk integrasi dengan sistem lain</p>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">Preview Export</label>
-            <div className="border border-gray-300 rounded-lg p-6 bg-gray-50">
-              <div className="flex items-center justify-center mb-4">
-                <Download className="text-gray-400" size={48} />
-              </div>
-              <p className="text-center text-sm text-gray-600 mb-4">
-                Export akan mencakup semua data yang difilter dari dashboard
-              </p>
-              <div className="space-y-2 text-xs text-gray-500">
-                <div className="flex justify-between">
-                  <span>Total Records:</span>
-                  <span className="font-medium text-gray-900">18,265</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Date Range:</span>
-                  <span className="font-medium text-gray-900">Jan - May 2026</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>File Size (est.):</span>
-                  <span className="font-medium text-gray-900">
-                    {exportFormat === 'pdf' ? '2.4 MB' : exportFormat === 'excel' ? '1.8 MB' : '850 KB'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={handleExport}
-              disabled={isExporting}
-              className="w-full mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:cursor-not-allowed disabled:bg-blue-400"
-            >
-              {isExporting ? 'Mempersiapkan file...' : `Export ${exportFormat.toUpperCase()}`}
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <p className="text-sm text-gray-600 mb-2">Total Data Sources</p>
-          <p className="text-3xl font-bold text-gray-900">{dataSources.length}</p>
+          <p className="text-sm text-gray-600 mb-2">Database Status</p>
+          <p className="text-3xl font-bold text-gray-900">{dbStatus.status === 'connected' ? 'OK' : 'Error'}</p>
           <p className="text-xs text-gray-500 mt-2">
-            {dataSources.filter((s) => s.status === 'connected').length} active connections
+            Neon Serverless PostgreSQL
           </p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <p className="text-sm text-gray-600 mb-2">Total Records</p>
+          <p className="text-sm text-gray-600 mb-2">Total Tables</p>
           <p className="text-3xl font-bold text-gray-900">
-            {dataSources.reduce((acc, s) => acc + (s.records || 0), 0).toLocaleString('id-ID')}
+            {dbStatus.tables || 0}
           </p>
-          <p className="text-xs text-gray-500 mt-2">Across all data sources</p>
+          <p className="text-xs text-gray-500 mt-2">Sistem Database Utama</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <p className="text-sm text-gray-600 mb-2">Last Export</p>
-          <p className="text-3xl font-bold text-gray-900">2 hrs ago</p>
-          <p className="text-xs text-gray-500 mt-2">Format: PDF, Size: 2.1 MB</p>
+          <p className="text-sm text-gray-600 mb-2">Last Connection</p>
+          <p className="text-3xl font-bold text-gray-900">{dbStatus.now ? new Date(dbStatus.now).toLocaleTimeString('id-ID') : '-'}</p>
+          <p className="text-xs text-gray-500 mt-2">Waktu server</p>
         </div>
       </div>
 

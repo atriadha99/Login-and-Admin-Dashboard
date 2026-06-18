@@ -55,17 +55,9 @@ interface Transaction {
   region: string;
 }
 
-const initialTransactions: Transaction[] = [
-  { id: 'TRX-001', date: '2026-05-06', customer: 'Toko Sumber Rejeki', amount: 2500000, region: 'Bogor Utara' },
-  { id: 'TRX-002', date: '2026-05-06', customer: 'Warung Maju Jaya', amount: 1800000, region: 'Bogor Selatan' },
-  { id: 'TRX-003', date: '2026-05-05', customer: 'CV Berkah Abadi', amount: 4200000, region: 'Cibinong' },
-  { id: 'TRX-004', date: '2026-05-05', customer: 'Toko Harapan Baru', amount: 3100000, region: 'Bogor Barat' },
-  { id: 'TRX-005', date: '2026-05-04', customer: 'UD Sumber Makmur', amount: 2900000, region: 'Bogor Timur' },
-];
-
 export default function PenjualanPage() {
   const navigate = useNavigate();
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ customer: '', amount: '', date: '', region: '' });
@@ -83,13 +75,13 @@ export default function PenjualanPage() {
 
   const fetchTransactions = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/penjualan');
+      const res = await fetch('/api/penjualan');
       if (res.ok) {
         const data = await res.json();
         setTransactions(data);
       }
     } catch (error) {
-      console.log('API backend belum menyala, menggunakan data lokal (mock).');
+      toast.error('Gagal mengambil data penjualan.');
     }
   };
 
@@ -138,7 +130,7 @@ export default function PenjualanPage() {
       };
 
       try {
-        const res = await fetch(`http://localhost:3001/api/penjualan/${editingId}`, {
+        const res = await fetch(`/api/penjualan/${editingId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedData)
@@ -148,8 +140,7 @@ export default function PenjualanPage() {
           fetchTransactions(); // Refresh data aktual
         } else throw new Error('API Error');
       } catch (error) {
-        setTransactions((prev) => prev.map((t) => (t.id === editingId ? { ...t, ...updatedData } : t)));
-        toast.success('Data diperbarui secara lokal (API offline).');
+        toast.error('Gagal memperbarui data penjualan.');
       }
     } else {
       const newId = `TRX-${String(transactions.length + 1).padStart(3, '0')}`;
@@ -162,7 +153,7 @@ export default function PenjualanPage() {
       };
 
       try {
-        const res = await fetch('http://localhost:3001/api/penjualan', {
+        const res = await fetch('/api/penjualan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newData)
@@ -175,8 +166,7 @@ export default function PenjualanPage() {
           throw new Error('API Response Error');
         }
       } catch (error) {
-        setTransactions((prev) => [...prev, newData]);
-        toast.success('Data disimpan secara lokal (API offline).');
+        toast.error('Gagal menambah data penjualan.');
       }
     }
     handleCloseModal();
@@ -185,14 +175,13 @@ export default function PenjualanPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) {
       try {
-        const res = await fetch(`http://localhost:3001/api/penjualan/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/penjualan/${id}`, { method: 'DELETE' });
         if (res.ok) {
           toast.success('Data transaksi berhasil dihapus.');
           fetchTransactions();
         } else throw new Error('API Error');
       } catch (error) {
-        setTransactions((prev) => prev.filter((t) => t.id !== id));
-        toast.success('Data dihapus secara lokal (API offline).');
+        toast.error('Gagal menghapus data penjualan.');
       }
     }
   };

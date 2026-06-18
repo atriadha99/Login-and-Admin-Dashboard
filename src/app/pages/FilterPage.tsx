@@ -1,25 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Filter, Download, X } from 'lucide-react';
 import { toast } from 'sonner';
-
-// Mock data
-const regionData = [
-  { region: 'Bogor Utara', value: 45000000, transactions: 156 },
-  { region: 'Bogor Selatan', value: 38000000, transactions: 132 },
-  { region: 'Bogor Barat', value: 42000000, transactions: 145 },
-  { region: 'Bogor Timur', value: 35000000, transactions: 118 },
-  { region: 'Cibinong', value: 52000000, transactions: 178 },
-  { region: 'Ciawi', value: 28000000, transactions: 95 },
-];
-
-const detailTransactions = [
-  { id: 'TRX-045', date: '2026-05-06', customer: 'Toko Sumber Rejeki', product: 'Galon 19L', qty: 150, amount: 2250000 },
-  { id: 'TRX-046', date: '2026-05-06', customer: 'Warung Berkah', product: 'Galon 19L', qty: 80, amount: 1200000 },
-  { id: 'TRX-047', date: '2026-05-05', customer: 'CV Maju Jaya', product: 'Galon 19L', qty: 200, amount: 3000000 },
-  { id: 'TRX-048', date: '2026-05-05', customer: 'Toko Harapan', product: 'Cup 240ml', qty: 500, amount: 1500000 },
-  { id: 'TRX-049', date: '2026-05-04', customer: 'UD Sejahtera', product: 'Galon 19L', qty: 120, amount: 1800000 },
-];
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function FilterPage() {
   const [startDate, setStartDate] = useState('2026-04-01');
@@ -28,6 +12,27 @@ export default function FilterPage() {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [selectedBar, setSelectedBar] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [regionData, setRegionData] = useState<any[]>([]);
+  const [detailTransactions, setDetailTransactions] = useState<any[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    fetchFilteredData();
+  }, [startDate, endDate]);
+
+  const fetchFilteredData = async () => {
+    try {
+      const params = new URLSearchParams({ startDate, endDate });
+      const res = await fetch(`/api/filter?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRegionData(data.regionData || []);
+        setDetailTransactions(data.detailTransactions || []);
+      }
+    } catch (error) {
+      toast.error('Gagal mengambil data dari database.');
+    }
+  };
 
   const handleBarClick = (data: any) => {
     setSelectedBar(data.region);
@@ -41,9 +46,10 @@ export default function FilterPage() {
 
   const totalSales = filteredRegionData.reduce((sum, item) => sum + item.value, 0);
   const totalTransactions = filteredRegionData.reduce((sum, item) => sum + item.transactions, 0);
-  const topRegion = filteredRegionData.reduce((best, item) => (item.value > best.value ? item : best), filteredRegionData[0] ?? regionData[0]);
+  const topRegion = filteredRegionData.reduce((best, item) => (item.value > best.value ? item : best), filteredRegionData[0] || { region: '-', value: 0 });
 
   const handleApplyFilter = () => {
+    fetchFilteredData();
     toast.success(`Filter diterapkan untuk ${selectedRegion || 'semua wilayah'} dan ${selectedProduct || 'semua produk'}.`);
   };
 
@@ -52,30 +58,82 @@ export default function FilterPage() {
     setEndDate('2026-05-06');
     setSelectedRegion('');
     setSelectedProduct('');
+    fetchFilteredData();
     toast.info('Filter telah direset ke nilai default.');
   };
 
-  const handleExport = (format: 'pdf' | 'png') => {
-    const exportContent = [
-      `Laporan Filter ${format.toUpperCase()}`,
-      `Periode: ${startDate} - ${endDate}`,
-      `Wilayah: ${selectedRegion || 'Semua wilayah'}`,
-      `Produk: ${selectedProduct || 'Semua produk'}`,
-      `Total Penjualan: Rp ${(totalSales / 1000000).toFixed(1)}M`,
-      `Total Transaksi: ${totalTransactions}`,
-      `Wilayah Tertinggi: ${topRegion.region}`,
-    ].join('\n');
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams({ startDate, endDate });
+      const [resP, resA, resD, resPg] = await Promise.all([
+        fetch(`/api/penjualan?${params}`).catch(() => null),
+        fetch(`/api/armada?${params}`).catch(() => null),
+        fetch(`/api/driver?${params}`).catch(() => null),
+        fetch(`/api/pengiriman?${params}`).catch(() => null)
+      ]);
 
-    const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `laporan-filter-${format}.${format === 'pdf' ? 'pdf' : 'png'}`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    toast.success(`Laporan ${format.toUpperCase()} berhasil diunduh.`);
+      const penjualan = resP?.ok ? await resP.json() : [];
+      const armada = resA?.ok ? await resA.json() : [];
+      const driver = resD?.ok ? await resD.json() : [];
+      const pengiriman = resPg?.ok ? await resPg.json() : [];
+
+      const doc = new jsPDF();
+      let currentY = 15;
+      
+      doc.setFont("helvetica", "bold").setFontSize(16);
+      doc.text("PT Anugerah Bersama Bogor", 14, currentY);
+      currentY += 7;
+      
+      doc.setFontSize(11).setFont("helvetica", "normal");
+      doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, currentY);
+      currentY += 5;
+      doc.text(`Periode Laporan: ${startDate} sampai ${endDate}`, 14, currentY);
+      currentY += 10;
+
+      doc.setFontSize(12).setFont("helvetica", "bold");
+      doc.text("Ringkasan Statistik", 14, currentY);
+      currentY += 6;
+      doc.setFontSize(10).setFont("helvetica", "normal");
+      doc.text(`Total Armada: ${armada.length}`, 14, currentY);
+      currentY += 5;
+      doc.text(`Total Driver: ${driver.length}`, 14, currentY);
+      currentY += 5;
+      doc.text(`Total Pengiriman: ${pengiriman.length}`, 14, currentY);
+      currentY += 5;
+      doc.text(`Total Penjualan: ${penjualan.length}`, 14, currentY);
+      currentY += 10;
+
+      const addDynamicTable = (title: string, data: any[], color: [number, number, number]) => {
+        if (data.length === 0) return;
+        if (currentY > 250) { doc.addPage(); currentY = 15; }
+        doc.setFontSize(12).setFont("helvetica", "bold");
+        doc.text(title, 14, currentY);
+        const head = [Object.keys(data[0]).map(k => k.toUpperCase().replace(/_/g, ' '))];
+        const body = data.map(row => Object.values(row).map(val => String(val || '-')));
+        autoTable(doc, {
+          startY: currentY + 4,
+          head,
+          body,
+          headStyles: { fillColor: color },
+          margin: { bottom: 10 }
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      };
+
+      addDynamicTable("Data Armada", armada, [16, 185, 129]);
+      addDynamicTable("Data Driver", driver, [245, 158, 11]);
+      addDynamicTable("Data Pengiriman", pengiriman, [139, 92, 246]);
+      addDynamicTable("Data Penjualan", penjualan, [37, 99, 235]);
+
+      doc.save(`Laporan_Periode_${startDate}_${endDate}.pdf`);
+      toast.success('Laporan PDF berhasil diunduh.');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Gagal mengekspor laporan PDF.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -168,18 +226,12 @@ export default function FilterPage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => handleExport('pdf')}
+              onClick={handleExportPDF}
+              disabled={isExporting}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Download size={16} />
-              PDF
-            </button>
-            <button
-              onClick={() => handleExport('png')}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Download size={16} />
-              PNG
+              {isExporting ? 'Mengekspor...' : 'Export PDF'}
             </button>
           </div>
         </div>
@@ -279,7 +331,7 @@ export default function FilterPage() {
 
             <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
               <button
-                onClick={() => handleExport('pdf')}
+                onClick={handleExportPDF}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-white transition-colors"
               >
                 Export PDF
