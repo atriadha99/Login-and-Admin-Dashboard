@@ -157,23 +157,21 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {isLogin && (
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                  Login Sebagai
-                </label>
-                <select
-                  id="role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as 'Admin' | 'Pemimpin' | 'Dispatcher')}
-                  className="w-full rounded-lg border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="Admin">Admin</option>
-                  <option value="Pemimpin">Pemimpin</option>
-                  <option value="Dispatcher">Dispatcher</option>
-                </select>
-              </div>
-            )}
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+                {isLogin ? 'Login Sebagai' : 'Daftar Sebagai'}
+              </label>
+              <select
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as 'Admin' | 'Pemimpin' | 'Dispatcher')}
+                className="w-full rounded-lg border border-gray-300 bg-white py-3 px-4 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Admin">Admin</option>
+                <option value="Pemimpin">Pemimpin</option>
+                <option value="Dispatcher">Dispatcher</option>
+              </select>
+            </div>
 
             <button
               type="submit"

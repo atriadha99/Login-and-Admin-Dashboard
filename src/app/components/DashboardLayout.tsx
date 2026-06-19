@@ -87,6 +87,7 @@ export default function DashboardLayout() {
   const handleLogout = () => {
     window.localStorage.removeItem('abb-role');
     window.localStorage.removeItem('abb-user');
+    window.localStorage.removeItem('abb-token');
     navigate('/');
   };
 
