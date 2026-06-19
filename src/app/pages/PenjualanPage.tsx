@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { DollarSign, TrendingUp, ShoppingBag, Package, Plus, Edit2, Trash2, X, Upload } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -20,33 +20,6 @@ const parseCSV = (text: string): string[][] => {
   });
 };
 
-const monthlyData = [
-  { month: 'Jan', penjualan: 45000000, target: 42000000 },
-  { month: 'Feb', penjualan: 52000000, target: 45000000 },
-  { month: 'Mar', penjualan: 48000000, target: 47000000 },
-  { month: 'Apr', penjualan: 61000000, target: 50000000 },
-  { month: 'Mei', penjualan: 55000000, target: 52000000 },
-  { month: 'Jun', penjualan: 67000000, target: 55000000 },
-];
-
-const productData = [
-  { name: 'Galon 19L', value: 65, revenue: 195000000 },
-  { name: 'Cup 240ml', value: 20, revenue: 60000000 },
-  { name: 'Botol 600ml', value: 10, revenue: 30000000 },
-  { name: 'Galon 12L', value: 5, revenue: 15000000 },
-];
-
-const regionSales = [
-  { region: 'Bogor Utara', sales: 45000000 },
-  { region: 'Cibinong', sales: 52000000 },
-  { region: 'Bogor Barat', sales: 42000000 },
-  { region: 'Bogor Selatan', sales: 38000000 },
-  { region: 'Bogor Timur', sales: 35000000 },
-  { region: 'Ciawi', sales: 28000000 },
-];
-
-const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444'];
-
 interface Transaction {
   id: string;
   date: string;
@@ -54,6 +27,14 @@ interface Transaction {
   amount: number;
   region: string;
 }
+
+interface MonthlyData {
+  month: string;
+  penjualan: number;
+  target: number; // Target bisa dibuat dinamis atau tetap statis
+}
+
+const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function PenjualanPage() {
   const navigate = useNavigate();
@@ -64,6 +45,8 @@ export default function PenjualanPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<string[][]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [regionSales, setRegionSales] = useState<{ region: string; sales: number }[]>([]);
 
   useEffect(() => {
     const userRole = window.localStorage.getItem('abb-role');
@@ -89,9 +72,54 @@ export default function PenjualanPage() {
     fetchTransactions();
   }, []);
 
-  const totalSales = monthlyData.reduce((acc, item) => acc + item.penjualan, 0);
-  const avgSales = totalSales / monthlyData.length;
-  const growth = ((monthlyData[monthlyData.length - 1].penjualan - monthlyData[0].penjualan) / monthlyData[0].penjualan) * 100;
+  useEffect(() => {
+    if (transactions.length > 0) {
+      // Kalkulasi data bulanan
+      const monthlyAgg: { [key: string]: number } = {};
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
+      transactions.forEach(t => {
+        const date = new Date(t.date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth()).padStart(2, '0')}`;
+        if (!monthlyAgg[monthKey]) {
+          monthlyAgg[monthKey] = 0;
+        }
+        monthlyAgg[monthKey] += Number(t.amount);
+      });
+
+      const sortedMonths = Object.keys(monthlyAgg).sort();
+      const newMonthlyData = sortedMonths.map(key => {
+        const [year, month] = key.split('-');
+        return {
+          month: `${monthNames[parseInt(month)]} '${year.slice(2)}`,
+          penjualan: monthlyAgg[key],
+          target: 45000000, // Target masih statis, bisa disesuaikan
+        };
+      });
+      setMonthlyData(newMonthlyData);
+
+      // Kalkulasi data per wilayah
+      const regionAgg: { [key: string]: number } = {};
+      transactions.forEach(t => {
+        if (!regionAgg[t.region]) {
+          regionAgg[t.region] = 0;
+        }
+        regionAgg[t.region] += Number(t.amount);
+      });
+      const newRegionSales = Object.keys(regionAgg).map(region => ({ region, sales: regionAgg[region] }));
+      setRegionSales(newRegionSales);
+    }
+  }, [transactions]);
+
+  const { totalSales, avgSales, growth } = useMemo(() => {
+    if (monthlyData.length === 0) return { totalSales: 0, avgSales: 0, growth: 0 };
+    const total = monthlyData.reduce((acc, item) => acc + item.penjualan, 0);
+    const avg = total / monthlyData.length;
+    const growthCalc = monthlyData.length > 1
+      ? ((monthlyData[monthlyData.length - 1].penjualan - monthlyData[0].penjualan) / monthlyData[0].penjualan) * 100
+      : 0;
+    return { totalSales: total, avgSales: avg, growth: growthCalc };
+  }, [monthlyData]);
 
   const handleOpenModal = (transaction?: Transaction) => {
     if (transaction) {
@@ -143,7 +171,7 @@ export default function PenjualanPage() {
         toast.error('Gagal memperbarui data penjualan.');
       }
     } else {
-      const newId = `TRX-${String(transactions.length + 1).padStart(3, '0')}`;
+      const newId = `TRX-${Date.now()}`;
       const newData = {
         id: newId,
         customer: formData.customer,
@@ -267,8 +295,8 @@ export default function PenjualanPage() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+{growth.toFixed(1)}%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Total Penjualan</h3>
-          <p className="text-3xl font-bold text-gray-900">Rp {(totalSales / 1000000).toFixed(0)}M</p>
-          <p className="text-xs text-gray-500 mt-2">6 bulan terakhir</p>
+          <p className="text-3xl font-bold text-gray-900">Rp {(totalSales / 1000000).toFixed(1)}M</p>
+          <p className="text-xs text-gray-500 mt-2">Selama periode data</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -293,15 +321,16 @@ export default function PenjualanPage() {
           <p className="text-xs text-gray-500 mt-2">Bulan ini</p>
         </div>
 
+        {/* KPI Total Produk Terjual dinonaktifkan karena data produk tidak ada di API */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 rounded-lg bg-orange-50 flex items-center justify-center">
               <Package className="text-orange-600" size={24} />
             </div>
           </div>
-          <h3 className="text-sm text-gray-600 mb-1">Total Produk Terjual</h3>
-          <p className="text-3xl font-bold text-gray-900">24,580</p>
-          <p className="text-xs text-gray-500 mt-2">Unit produk</p>
+          <h3 className="text-sm text-gray-600 mb-1">Total Transaksi</h3>
+          <p className="text-3xl font-bold text-gray-900">{transactions.length}</p>
+          <p className="text-xs text-gray-500 mt-2">Jumlah transaksi tercatat</p>
         </div>
       </div>
 
@@ -326,40 +355,15 @@ export default function PenjualanPage() {
 
       {/* Product Mix and Regional Sales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Product Distribution */}
+        {/* Product Distribution dinonaktifkan karena data produk tidak ada di API */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">Distribusi Produk</h3>
-          <div className="flex items-center justify-center mb-6">
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={productData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {productData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="space-y-3">
-            {productData.map((product, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index] }}></div>
-                  <span className="text-sm font-medium text-gray-900">{product.name}</span>
-                </div>
-                <span className="text-sm text-gray-600">Rp {(product.revenue / 1000000).toFixed(0)}M</span>
-              </div>
-            ))}
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Distribusi Produk (Contoh)</h3>
+          <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg">
+            <div className="text-center text-gray-500">
+              <Package size={48} className="mx-auto mb-4" />
+              <p className="font-semibold">Data Produk Belum Tersedia</p>
+              <p className="text-sm">Update API penjualan untuk menyertakan kolom produk.</p>
+            </div>
           </div>
         </div>
 
@@ -372,7 +376,11 @@ export default function PenjualanPage() {
               <XAxis type="number" stroke="#6b7280" tickFormatter={(value) => `${value / 1000000}M`} />
               <YAxis dataKey="region" type="category" stroke="#6b7280" width={100} />
               <Tooltip formatter={(value: number) => `Rp ${(value / 1000000).toFixed(1)}M`} />
-              <Bar dataKey="sales" fill="#2563eb" radius={[0, 8, 8, 0]} />
+              <Bar dataKey="sales" radius={[0, 8, 8, 0]}>
+                {regionSales.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -419,7 +427,7 @@ export default function PenjualanPage() {
                   <td className="py-3 text-sm text-gray-900">{transaction.customer}</td>
                   <td className="py-3 text-sm text-gray-600">{transaction.region}</td>
                   <td className="py-3 text-sm text-gray-900 text-right font-medium">
-                    Rp {(transaction.amount / 1000000).toFixed(1)}M
+                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(transaction.amount)}
                   </td>
                   <td className="py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
@@ -469,8 +477,8 @@ export default function PenjualanPage() {
                 <Package className="text-green-600" size={18} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900 mb-1">Produk Unggulan</p>
-                <p className="text-xs text-gray-600">Galon 19L mendominasi dengan 65% dari total penjualan. Pertimbangkan untuk meningkatkan stok produk ini.</p>
+                <p className="text-sm font-semibold text-gray-900 mb-1">Insight Produk</p>
+                <p className="text-xs text-gray-600">Data produk belum tersedia. Integrasikan data produk untuk melihat produk unggulan.</p>
               </div>
             </div>
           </div>

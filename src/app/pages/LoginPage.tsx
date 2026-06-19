@@ -22,14 +22,15 @@ export default function LoginPage() {
       });
       
       if (!res.ok) {
-        let errorMessage = 'Email atau password salah';
+        const errorText = await res.text(); // Baca body sebagai teks HANYA SEKALI.
+        let errorMessage = `Terjadi kesalahan: ${res.statusText}`;
         try {
-          // Coba parse error sebagai JSON
-          const err = await res.json();
-          errorMessage = err.message || errorMessage;
+          // Coba parse teks yang sudah dibaca sebagai JSON.
+          const errJson = JSON.parse(errorText);
+          errorMessage = errJson.message || 'Email atau password salah';
         } catch (jsonError) {
-          // Jika gagal, mungkin respons bukan JSON. Baca sebagai teks.
-          errorMessage = (await res.text()) || `Terjadi kesalahan: ${res.statusText}`;
+          // Jika parsing gagal, gunakan teks mentah sebagai pesan error (jika ada).
+          errorMessage = errorText || errorMessage;
         }
         throw new Error(errorMessage);
       }
@@ -63,14 +64,15 @@ export default function LoginPage() {
       });
       
       if (!res.ok) {
-        let errorMessage = 'Gagal registrasi';
+        const errorText = await res.text(); // Baca body sebagai teks HANYA SEKALI.
+        let errorMessage = `Terjadi kesalahan: ${res.statusText}`;
         try {
-          // Coba parse error sebagai JSON
-          const err = await res.json();
-          errorMessage = err.message || errorMessage;
+          // Coba parse teks yang sudah dibaca sebagai JSON.
+          const errJson = JSON.parse(errorText);
+          errorMessage = errJson.message || 'Gagal registrasi';
         } catch (jsonError) {
-          // Jika gagal, mungkin respons bukan JSON. Baca sebagai teks.
-          errorMessage = (await res.text()) || `Terjadi kesalahan: ${res.statusText}`;
+          // Jika parsing gagal, gunakan teks mentah sebagai pesan error (jika ada).
+          errorMessage = errorText || errorMessage;
         }
         throw new Error(errorMessage);
       }
