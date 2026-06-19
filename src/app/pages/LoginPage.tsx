@@ -22,8 +22,16 @@ export default function LoginPage() {
       });
       
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Email atau password salah');
+        let errorMessage = 'Email atau password salah';
+        try {
+          // Coba parse error sebagai JSON
+          const err = await res.json();
+          errorMessage = err.message || errorMessage;
+        } catch (jsonError) {
+          // Jika gagal, mungkin respons bukan JSON. Baca sebagai teks.
+          errorMessage = (await res.text()) || `Terjadi kesalahan: ${res.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await res.json();
@@ -55,8 +63,16 @@ export default function LoginPage() {
       });
       
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Gagal registrasi');
+        let errorMessage = 'Gagal registrasi';
+        try {
+          // Coba parse error sebagai JSON
+          const err = await res.json();
+          errorMessage = err.message || errorMessage;
+        } catch (jsonError) {
+          // Jika gagal, mungkin respons bukan JSON. Baca sebagai teks.
+          errorMessage = (await res.text()) || `Terjadi kesalahan: ${res.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
       
       toast.success('Registrasi berhasil! Silakan login dengan akun baru Anda.');

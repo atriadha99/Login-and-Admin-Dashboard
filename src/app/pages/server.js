@@ -3,6 +3,8 @@ import cors from 'cors';
 import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 dotenv.config();
 
 const app = express();
@@ -11,6 +13,9 @@ app.use(express.json());
 
 // Ganti URL ini dengan URI dari Neon Anda di file .env (DATABASE_URL)
 const sql = neon(process.env.DATABASE_URL || 'postgresql://<user>:<password>@<ep-hostname>.neon.tech/<dbname>?sslmode=require');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key'; // Ganti dengan secret key yang kuat di .env
+const SALT_ROUNDS = 10;
 
 const handleRequest = async (res, operation) => {
   try {
@@ -183,6 +188,61 @@ app.put('/api/users/:id', (req, res) => handleRequest(res, () => {
 }));
 
 app.delete('/api/users/:id', (req, res) => handleRequest(res, () => sql`DELETE FROM users WHERE id = ${req.params.id} RETURNING id, name, email, role`));
+
+// --- AUTHENTICATION ---
+
+app.post('/api/auth/register', async (req, res) => {
+  const { name, email, password, role } = req.body;
+
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ message: 'Semua kolom wajib diisi.' });
+  }
+
+  try {
+    const existingUser = await sql`SELECT * FROM users WHERE email = ${email.toLowerCase()}`;
+    if (existingUser.length > 0) {
+      return res.status(409).json({ message: 'Email sudah terdaftar.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+    const newUser = await sql`
+      INSERT INTO users (name, email, password, role) 
+      VALUES (${name}, ${email.toLowerCase()}, ${hashedPassword}, ${role})
+      RETURNING id, name, email, role
+    `;
+
+    res.status(201).json(newUser[0]);
+  } catch (error) {
+    console.error('Register Error:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server saat registrasi.' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password, role } = req.body;
+
+  if (!email || !password || !role) {
+    return res.status(400).json({ message: 'Email, password, dan role wajib diisi.' });
+  }
+
+  try {
+    const users = await sql`SELECT * FROM users WHERE email = ${email.toLowerCase()} AND role = ${role}`;
+    if (users.length === 0) {
+      return res.status(401).json({ message: 'Email, password, atau role salah.' });
+    }
+    const user = users[0];
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Email, password, atau role salah.' });
+    }
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token, name: user.name, role: user.role });
+  } catch (error) {
+    console.error('Login Error:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server saat login.' });
+  }
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
