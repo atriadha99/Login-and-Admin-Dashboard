@@ -246,7 +246,12 @@ app.post('/api/auth/register', async (req, res) => {
     res.status(201).json(newUser[0]);
   } catch (error) {
     console.error('Register Error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan pada server saat registrasi.' });
+    // Kirim pesan error yang lebih spesifik ke frontend
+    let errorMessage = 'Terjadi kesalahan pada server saat registrasi.';
+    if (error instanceof Error) {
+      errorMessage = error.message.includes('users_email_key') ? 'Email sudah terdaftar.' : `Database Error: ${error.message}`;
+    }
+    res.status(500).json({ message: errorMessage });
   }
 });
 
