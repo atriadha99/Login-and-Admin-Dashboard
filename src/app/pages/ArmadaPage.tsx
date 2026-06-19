@@ -31,10 +31,22 @@ export default function ArmadaPage() {
 
   const fetchVehicles = async () => {
     try {
-      const res = await fetch('/api/armada');
+      const token = window.localStorage.getItem('abb-token');
+      if (!token) {
+        toast.error('Sesi tidak valid. Silakan login kembali.');
+        navigate('/');
+        return;
+      }
+      const res = await fetch('/api/armada', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         setVehicles(data);
+      } else {
+        throw new Error('Gagal mengambil data armada.');
       }
     } catch (error) {
       toast.error('Gagal mengambil data armada.');
@@ -64,9 +76,13 @@ export default function ArmadaPage() {
     };
 
     try {
+      const token = window.localStorage.getItem('abb-token');
       const res = await fetch('/api/armada', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(vehicle)
       });
       if (res.ok) {
@@ -93,9 +109,13 @@ export default function ArmadaPage() {
     };
 
     try {
+      const token = window.localStorage.getItem('abb-token');
       const res = await fetch(`/api/armada/${vehicleId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(updatedVehicle)
       });
       if (res.ok) {
@@ -110,7 +130,13 @@ export default function ArmadaPage() {
   const handleDeleteVehicle = async (id: string, plateNumber: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus kendaraan ${plateNumber}?`)) {
       try {
-        const res = await fetch(`/api/armada/${id}`, { method: 'DELETE' });
+        const token = window.localStorage.getItem('abb-token');
+        const res = await fetch(`/api/armada/${id}`, { 
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (res.ok) {
           toast.success('Data kendaraan berhasil dihapus dari database.');
           fetchVehicles();

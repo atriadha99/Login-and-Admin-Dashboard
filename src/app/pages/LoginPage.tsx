@@ -60,7 +60,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password, role: 'Dispatcher' })
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password, role })
       });
       
       if (!res.ok) {

@@ -32,13 +32,26 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const res = await fetch('/api/dashboard');
+      const token = window.localStorage.getItem('abb-token');
+      if (!token) {
+        toast.error('Sesi tidak valid. Silakan login kembali.');
+        navigate('/');
+        return;
+      }
+      const res = await fetch('/api/dashboard', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         setDashboardData(data);
+      } else {
+        throw new Error('Gagal mengambil data dashboard.');
       }
     } catch (error) {
       console.error('Gagal mengambil data dashboard:', error);
+      toast.error('Gagal mengambil data dashboard.');
     }
   };
 

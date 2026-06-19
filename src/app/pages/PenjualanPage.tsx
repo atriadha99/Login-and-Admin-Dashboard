@@ -58,13 +58,28 @@ export default function PenjualanPage() {
 
   const fetchTransactions = async () => {
     try {
-      const res = await fetch('/api/penjualan');
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data);
+      const token = window.localStorage.getItem('abb-token');
+      if (!token) {
+        toast.error('Sesi tidak valid. Silakan login kembali.');
+        navigate('/');
+        return;
       }
-    } catch (error) {
-      toast.error('Gagal mengambil data penjualan.');
+
+      const res = await fetch('/api/penjualan', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Gagal mengambil data.');
+      }
+
+      const data = await res.json();
+      setTransactions(data);
+    } catch (error: any) {
+      toast.error(error?.message || 'Gagal mengambil data penjualan.');
     }
   };
 
@@ -158,12 +173,16 @@ export default function PenjualanPage() {
       };
 
       try {
+        const token = window.localStorage.getItem('abb-token');
         const res = await fetch(`/api/penjualan/${editingId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify(updatedData)
         });
-        if (res.ok) {
+        if (res.ok) { 
           toast.success('Data transaksi berhasil diperbarui.');
           fetchTransactions(); // Refresh data aktual
         } else throw new Error('API Error');
@@ -181,9 +200,13 @@ export default function PenjualanPage() {
       };
 
       try {
+        const token = window.localStorage.getItem('abb-token');
         const res = await fetch('/api/penjualan', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify(newData)
         });
         
@@ -203,7 +226,11 @@ export default function PenjualanPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) {
       try {
-        const res = await fetch(`/api/penjualan/${id}`, { method: 'DELETE' });
+        const token = window.localStorage.getItem('abb-token');
+        const res = await fetch(`/api/penjualan/${id}`, { 
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (res.ok) {
           toast.success('Data transaksi berhasil dihapus.');
           fetchTransactions();

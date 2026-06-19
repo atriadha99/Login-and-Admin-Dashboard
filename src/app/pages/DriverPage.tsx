@@ -41,10 +41,22 @@ export default function DriverPage() {
 
   const fetchDrivers = async () => {
     try {
-      const res = await fetch('/api/driver');
+      const token = window.localStorage.getItem('abb-token');
+      if (!token) {
+        toast.error('Sesi tidak valid. Silakan login kembali.');
+        navigate('/');
+        return;
+      }
+      const res = await fetch('/api/driver', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         setDrivers(data);
+      } else {
+        throw new Error('Gagal mengambil data driver.');
       }
     } catch (error) {
       toast.error('Gagal mengambil data driver.');
@@ -75,9 +87,13 @@ export default function DriverPage() {
     };
 
     try {
+      const token = window.localStorage.getItem('abb-token');
       const res = await fetch('/api/driver', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(driver)
       });
       if (res.ok) {
@@ -95,7 +111,13 @@ export default function DriverPage() {
   const handleDeleteDriver = async (id: string, name: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus driver ${name}?`)) {
       try {
-        const res = await fetch(`/api/driver/${id}`, { method: 'DELETE' });
+        const token = window.localStorage.getItem('abb-token');
+        const res = await fetch(`/api/driver/${id}`, { 
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (res.ok) {
           toast.success('Data driver berhasil dihapus dari database.');
           fetchDrivers();

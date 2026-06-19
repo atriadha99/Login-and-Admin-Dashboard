@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MapPin, TrendingUp, Truck, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 export default function DistribusiPage() {
@@ -9,14 +10,27 @@ export default function DistribusiPage() {
     weeklyTrend: [],
     deliverySchedule: []
   });
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch('/api/distribusi');
+        const token = window.localStorage.getItem('abb-token');
+        if (!token) {
+          toast.error('Sesi tidak valid. Silakan login kembali.');
+          navigate('/');
+          return;
+        }
+        const res = await fetch('/api/distribusi', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (res.ok) {
           const result = await res.json();
           setData(result);
+        } else {
+          throw new Error('Gagal mengambil data distribusi.');
         }
       } catch (error) {
         toast.error('Gagal mengambil data distribusi.');
