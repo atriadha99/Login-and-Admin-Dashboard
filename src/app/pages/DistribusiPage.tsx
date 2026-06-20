@@ -41,7 +41,7 @@ export default function DistribusiPage() {
 
   const totalDeliveries = data.distributionData.reduce((acc: number, item: any) => acc + item.deliveries, 0);
   const totalOnTime = data.distributionData.reduce((acc: number, item: any) => acc + item.onTime, 0);
-  const onTimeRate = (totalOnTime / totalDeliveries) * 100;
+  const onTimeRate = totalDeliveries > 0 ? (totalOnTime / totalDeliveries) * 100 : 0;
   const totalDistance = data.distributionData.reduce((acc: number, item: any) => acc + item.distance, 0);
 
   return (

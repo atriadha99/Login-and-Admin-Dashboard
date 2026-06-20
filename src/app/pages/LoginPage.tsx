@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'Admin' | 'Pemimpin' | 'Dispatcher'>('Admin');
+  const [role, setRole] = useState<'Admin' | 'Pemimpin' | 'Dispatcher'>('Dispatcher');
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -60,7 +60,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password, role })
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password, role: 'Dispatcher' })
       });
       
       if (!res.ok) {
@@ -157,9 +157,10 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {isLogin && (
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                {isLogin ? 'Login Sebagai' : 'Daftar Sebagai'}
+                Login Sebagai
               </label>
               <select
                 id="role"
@@ -172,6 +173,13 @@ export default function LoginPage() {
                 <option value="Dispatcher">Dispatcher</option>
               </select>
             </div>
+            )}
+
+            {!isLogin && (
+              <p className="text-sm text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                Akun baru otomatis terdaftar sebagai <strong>Dispatcher</strong>.
+              </p>
+            )}
 
             <button
               type="submit"

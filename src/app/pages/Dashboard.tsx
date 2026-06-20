@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, DollarSign, ShoppingCart, Activity, Download, Sparkles, FileText, Filter } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingCart, Activity, Sparkles, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+
+const formatMillions = (value: number) => {
+  const safe = Number.isFinite(value) ? value : 0;
+  return (safe / 1000000).toFixed(1);
+};
 
 export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<'6M' | '1Y'>('6M');
-  const [userRole, setUserRole] = useState<'Admin' | 'Pemimpin'>('Admin');
+  const [userRole, setUserRole] = useState<'Admin' | 'Pemimpin' | 'Dispatcher'>('Admin');
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState({
     monthlyData: [],
@@ -24,7 +27,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const savedRole = window.localStorage.getItem('abb-role');
-    if (savedRole === 'Pemimpin' || savedRole === 'Admin') {
+    if (savedRole === 'Pemimpin' || savedRole === 'Admin' || savedRole === 'Dispatcher') {
       setUserRole(savedRole);
     }
     fetchDashboardData();
@@ -55,39 +58,8 @@ export default function Dashboard() {
     }
   };
 
-  const handleExportSummary = () => {
-    const csvContent = [
-      ['Kategori', 'Nilai'],
-      ['Total Penjualan', '328M'],
-      ['Laba Kotor', '98M'],
-      ['Jumlah Transaksi', '1,284'],
-      ['Rata-rata Nilai', 'Rp 2.8M'],
-      ['Periode', periodLabel],
-    ]
-      .map((row) => row.join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'ringkasan-dashboard.csv');
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-
-    toast.success('Ringkasan dashboard berhasil diunduh.');
-  };
-
-  const handleGenerateInsight = () => {
-    toast.success('Insight otomatis siap dibagikan ke tim operasional.');
-  };
-
-  const exportDashboardVisual = async (format: 'png' | 'pdf' = 'png') => {
-    toast.info('Fitur ekspor visual telah dipindahkan ke halaman Filter & Drill-Down.');
-    navigate('/dashboard/filter');
-  };
+  const kpi = dashboardData.kpi || { totalPenjualan: 0, labaKotor: 0, jumlahTransaksi: 0, rataRataNilai: 0 };
+  const marginPercent = kpi.totalPenjualan > 0 ? Math.round((kpi.labaKotor / kpi.totalPenjualan) * 100) : 0;
 
   return (
     <div id="dashboard-content" className="space-y-6">
@@ -101,7 +73,7 @@ export default function Dashboard() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+12.5%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Total Penjualan</h3>
-          <p className="text-3xl font-bold text-gray-900">Rp {(dashboardData.kpi.totalPenjualan / 1000000).toFixed(1)}M</p>
+          <p className="text-3xl font-bold text-gray-900">Rp {formatMillions(kpi.totalPenjualan)}M</p>
           <p className="text-xs text-gray-500 mt-2">Bulan ini</p>
         </div>
 
@@ -113,8 +85,8 @@ export default function Dashboard() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+8.2%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Laba Kotor</h3>
-          <p className="text-3xl font-bold text-gray-900">Rp {(dashboardData.kpi.labaKotor / 1000000).toFixed(1)}M</p>
-          <p className="text-xs text-gray-500 mt-2">Margin 0%</p>
+          <p className="text-3xl font-bold text-gray-900">Rp {formatMillions(kpi.labaKotor)}M</p>
+          <p className="text-xs text-gray-500 mt-2">Margin {marginPercent}%</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -125,7 +97,7 @@ export default function Dashboard() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+15.3%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Jumlah Transaksi</h3>
-          <p className="text-3xl font-bold text-gray-900">{dashboardData.kpi.jumlahTransaksi}</p>
+          <p className="text-3xl font-bold text-gray-900">{kpi.jumlahTransaksi || 0}</p>
           <p className="text-xs text-gray-500 mt-2">Bulan ini</p>
         </div>
 
@@ -137,7 +109,7 @@ export default function Dashboard() {
             <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+5.7%</span>
           </div>
           <h3 className="text-sm text-gray-600 mb-1">Rata-rata Nilai</h3>
-          <p className="text-3xl font-bold text-gray-900">Rp {(dashboardData.kpi.rataRataNilai / 1000000).toFixed(1)}M</p>
+          <p className="text-3xl font-bold text-gray-900">Rp {formatMillions(kpi.rataRataNilai)}M</p>
           <p className="text-xs text-gray-500 mt-2">Per transaksi</p>
         </div>
       </div>
@@ -147,7 +119,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="text-blue-600" size={18} />
-            <h3 className="text-lg font-semibold text-gray-900">Aksi Cepat {userRole === 'Pemimpin' ? 'Pemimpin' : 'Admin'}</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Aksi Cepat {userRole === 'Pemimpin' ? 'Pemimpin' : userRole === 'Dispatcher' ? 'Dispatcher' : 'Admin'}</h3>
           </div>
           <p className="text-sm text-gray-500 mb-4">
             {userRole === 'Pemimpin'
@@ -155,36 +127,24 @@ export default function Dashboard() {
               : 'Gunakan fitur yang sudah siap untuk mendukung operasi harian.'}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {userRole === 'Admin' ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => navigate('/dashboard/filter')}
-                  className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  <Filter size={16} />
-                  Pergi ke Filter & Drill-Down untuk Laporan
-                </button>
-              </>
+            {userRole === 'Pemimpin' ? (
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard/filter')}
+                className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Filter size={16} />
+                Filter Data
+              </button>
             ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => navigate('/dashboard/filter')}
-                  className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  <Filter size={16} />
-                  Filter Data
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportSummary}
-                  className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  <FileText size={16} />
-                  Download Laporan
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard/filter')}
+                className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                <Filter size={16} />
+                Pergi ke Filter & Drill-Down untuk Laporan
+              </button>
             )}
           </div>
         </div>

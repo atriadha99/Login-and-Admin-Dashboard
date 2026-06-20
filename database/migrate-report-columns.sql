@@ -1,0 +1,14 @@
+-- Optional columns for laporan PDF (aman dijalankan berulang)
+ALTER TABLE armada ADD COLUMN IF NOT EXISTS tahun INTEGER;
+ALTER TABLE armada ADD COLUMN IF NOT EXISTS kapasitas_liter INTEGER DEFAULT 0;
+
+ALTER TABLE driver ADD COLUMN IF NOT EXISTS nomor_sim TEXT;
+
+ALTER TABLE pengiriman ADD COLUMN IF NOT EXISTS driver_name TEXT;
+ALTER TABLE pengiriman ADD COLUMN IF NOT EXISTS armada_id TEXT;
+ALTER TABLE pengiriman ADD COLUMN IF NOT EXISTS volume_liter INTEGER DEFAULT 0;
+ALTER TABLE pengiriman ADD COLUMN IF NOT EXISTS catatan TEXT;
+
+ALTER TABLE penjualan ADD COLUMN IF NOT EXISTS volume_liter INTEGER DEFAULT 0;
+ALTER TABLE penjualan ADD COLUMN IF NOT EXISTS harga_per_liter BIGINT DEFAULT 0;
+ALTER TABLE penjualan ADD COLUMN IF NOT EXISTS status_pembayaran TEXT DEFAULT 'Lunas';

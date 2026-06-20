@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Filter, Download, X } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function FilterPage() {
+  const navigate = useNavigate();
   const [startDate, setStartDate] = useState('2026-04-01');
   const [endDate, setEndDate] = useState('2026-05-06');
   const [selectedRegion, setSelectedRegion] = useState('');
@@ -22,8 +24,16 @@ export default function FilterPage() {
 
   const fetchFilteredData = async () => {
     try {
+      const token = window.localStorage.getItem('abb-token');
+      if (!token) {
+        toast.error('Sesi tidak valid. Silakan login kembali.');
+        navigate('/');
+        return;
+      }
       const params = new URLSearchParams({ startDate, endDate });
-      const res = await fetch(`/api/filter?${params}`);
+      const res = await fetch(`/api/filter?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (res.ok) {
         const data = await res.json();
         setRegionData(data.regionData || []);
@@ -44,9 +54,12 @@ export default function FilterPage() {
     return matchesRegion;
   });
 
-  const totalSales = filteredRegionData.reduce((sum, item) => sum + item.value, 0);
-  const totalTransactions = filteredRegionData.reduce((sum, item) => sum + item.transactions, 0);
-  const topRegion = filteredRegionData.reduce((best, item) => (item.value > best.value ? item : best), filteredRegionData[0] || { region: '-', value: 0 });
+  const totalSales = filteredRegionData.reduce((sum, item) => sum + (item?.value || 0), 0);
+  const totalTransactions = filteredRegionData.reduce((sum, item) => sum + (item?.transactions || 0), 0);
+  const topRegion = filteredRegionData.length > 0
+    ? filteredRegionData.reduce((best, item) => (item.value > best.value ? item : best), filteredRegionData[0])
+    : { region: '-', value: 0 };
+  const chartData = regionData.length > 0 ? regionData : [{ region: 'Belum ada data', value: 0, transactions: 0 }];
 
   const handleApplyFilter = () => {
     fetchFilteredData();
@@ -65,68 +78,130 @@ export default function FilterPage() {
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
+      const token = window.localStorage.getItem('abb-token');
+      if (!token) {
+        toast.error('Sesi tidak valid. Silakan login kembali.');
+        navigate('/');
+        return;
+      }
+
       const params = new URLSearchParams({ startDate, endDate });
-      const [resP, resA, resD, resPg] = await Promise.all([
-        fetch(`/api/penjualan?${params}`).catch(() => null),
-        fetch(`/api/armada?${params}`).catch(() => null),
-        fetch(`/api/driver?${params}`).catch(() => null),
-        fetch(`/api/pengiriman?${params}`).catch(() => null)
-      ]);
+      const res = await fetch(`/api/report?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      const penjualan = resP?.ok ? await resP.json() : [];
-      const armada = resA?.ok ? await resA.json() : [];
-      const driver = resD?.ok ? await resD.json() : [];
-      const pengiriman = resPg?.ok ? await resPg.json() : [];
+      if (!res.ok) {
+        throw new Error('Gagal mengambil data laporan dari database.');
+      }
 
+      const report = await res.json();
       const doc = new jsPDF();
       let currentY = 15;
-      
-      doc.setFont("helvetica", "bold").setFontSize(16);
-      doc.text("PT Anugerah Bersama Bogor", 14, currentY);
-      currentY += 7;
-      
-      doc.setFontSize(11).setFont("helvetica", "normal");
-      doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, currentY);
-      currentY += 5;
-      doc.text(`Periode Laporan: ${startDate} sampai ${endDate}`, 14, currentY);
-      currentY += 10;
 
-      doc.setFontSize(12).setFont("helvetica", "bold");
-      doc.text("Ringkasan Statistik", 14, currentY);
+      const formatDateId = (value: string) =>
+        new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+
+      doc.setFont('helvetica', 'bold').setFontSize(16);
+      doc.text('PT Anugerah Bersama Bogor', 14, currentY);
+      currentY += 8;
+      doc.setFontSize(11).setFont('helvetica', 'normal');
+      doc.text(`Tanggal Cetak: ${formatDateId(new Date().toISOString())}`, 14, currentY);
       currentY += 6;
-      doc.setFontSize(10).setFont("helvetica", "normal");
-      doc.text(`Total Armada: ${armada.length}`, 14, currentY);
-      currentY += 5;
-      doc.text(`Total Driver: ${driver.length}`, 14, currentY);
-      currentY += 5;
-      doc.text(`Total Pengiriman: ${pengiriman.length}`, 14, currentY);
-      currentY += 5;
-      doc.text(`Total Penjualan: ${penjualan.length}`, 14, currentY);
+      doc.text(`Periode Laporan: ${formatDateId(startDate)} s/d ${formatDateId(endDate)}`, 14, currentY);
       currentY += 10;
 
-      const addDynamicTable = (title: string, data: any[], color: [number, number, number]) => {
-        if (data.length === 0) return;
-        if (currentY > 250) { doc.addPage(); currentY = 15; }
-        doc.setFontSize(12).setFont("helvetica", "bold");
+      doc.setFont('helvetica', 'bold').setFontSize(12);
+      doc.text('Ringkasan', 14, currentY);
+      currentY += 6;
+      doc.setFontSize(10).setFont('helvetica', 'normal');
+      doc.text(`Total Armada: ${report.summary.totalArmada}`, 14, currentY);
+      currentY += 5;
+      doc.text(`Total Driver: ${report.summary.totalDriver}`, 14, currentY);
+      currentY += 5;
+      doc.text(`Total Pengiriman: ${report.summary.totalPengiriman}`, 14, currentY);
+      currentY += 5;
+      doc.text(`Total Penjualan: ${report.summary.totalPenjualan}`, 14, currentY);
+      currentY += 5;
+      doc.text(`Total Revenue: Rp ${Number(report.summary.totalRevenue || 0).toLocaleString('id-ID')}`, 14, currentY);
+      currentY += 10;
+
+      const addTable = (title: string, head: string[], rows: string[][], color: [number, number, number]) => {
+        if (currentY > 240) {
+          doc.addPage();
+          currentY = 15;
+        }
+        doc.setFont('helvetica', 'bold').setFontSize(12);
         doc.text(title, 14, currentY);
-        const head = [Object.keys(data[0]).map(k => k.toUpperCase().replace(/_/g, ' '))];
-        const body = data.map(row => Object.values(row).map(val => String(val || '-')));
         autoTable(doc, {
           startY: currentY + 4,
-          head,
-          body,
+          head: [head],
+          body: rows.length > 0 ? rows : [['-', '-', '-', '-', '-']],
           headStyles: { fillColor: color },
-          margin: { bottom: 10 }
+          margin: { bottom: 10 },
         });
-        currentY = (doc as any).lastAutoTable.finalY + 15;
+        currentY = (doc as any).lastAutoTable.finalY + 12;
       };
 
-      addDynamicTable("Data Armada", armada, [16, 185, 129]);
-      addDynamicTable("Data Driver", driver, [245, 158, 11]);
-      addDynamicTable("Data Pengiriman", pengiriman, [139, 92, 246]);
-      addDynamicTable("Data Penjualan", penjualan, [37, 99, 235]);
+      addTable(
+        'Data Armada',
+        ['No Polisi', 'Merk', 'Tahun', 'Kapasitas Liter', 'Status'],
+        report.armada.map((row: any) => [
+          row.noPolisi,
+          row.merk,
+          String(row.tahun),
+          String(row.kapasitasLiter),
+          row.status,
+        ]),
+        [16, 185, 129]
+      );
 
-      doc.save(`Laporan_Periode_${startDate}_${endDate}.pdf`);
+      addTable(
+        'Data Driver',
+        ['Nama', 'Nomor SIM', 'Telepon', 'Status'],
+        report.driver.map((row: any) => [row.nama, row.nomorSim, row.telepon, row.status]),
+        [245, 158, 11]
+      );
+
+      addTable(
+        'Data Pengiriman',
+        ['Tanggal', 'Driver', 'Armada', 'Tujuan', 'Volume Liter', 'Status', 'Catatan'],
+        report.pengiriman.map((row: any) => [
+          row.tanggal,
+          row.driver,
+          row.armada,
+          row.tujuan,
+          String(row.volumeLiter),
+          row.status,
+          row.catatan,
+        ]),
+        [139, 92, 246]
+      );
+
+      addTable(
+        'Data Penjualan',
+        ['Tanggal', 'Tujuan', 'Volume Liter', 'Harga/Liter', 'Total Harga', 'Status Pembayaran'],
+        report.penjualan.map((row: any) => [
+          row.tanggal,
+          row.tujuan,
+          String(row.volumeLiter),
+          `Rp ${Number(row.hargaPerLiter || 0).toLocaleString('id-ID')}`,
+          `Rp ${Number(row.totalHarga || 0).toLocaleString('id-ID')}`,
+          row.statusPembayaran,
+        ]),
+        [37, 99, 235]
+      );
+
+      if (currentY > 250) {
+        doc.addPage();
+        currentY = 15;
+      }
+      doc.setFont('helvetica', 'bold').setFontSize(12);
+      doc.text('Total Keseluruhan', 14, currentY);
+      currentY += 6;
+      doc.setFont('helvetica', 'normal').setFontSize(10);
+      doc.text(`Total Revenue Periode: Rp ${Number(report.summary.totalRevenue || 0).toLocaleString('id-ID')}`, 14, currentY);
+
+      doc.save(`Laporan_PTBABB_${startDate}_${endDate}.pdf`);
       toast.success('Laporan PDF berhasil diunduh.');
     } catch (error) {
       console.error('Export error:', error);
@@ -237,7 +312,7 @@ export default function FilterPage() {
         </div>
 
         <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={regionData}>
+          <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="region" stroke="#6b7280" />
             <YAxis stroke="#6b7280" tickFormatter={(value) => `${value / 1000000}M`} />
@@ -251,7 +326,7 @@ export default function FilterPage() {
               cursor="pointer"
               onClick={handleBarClick}
             >
-              {regionData.map((entry, index) => (
+              {chartData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={selectedBar === entry.region ? '#1d4ed8' : '#2563eb'}
@@ -313,7 +388,14 @@ export default function FilterPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {detailTransactions.map((transaction) => (
+                  {detailTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-sm text-gray-500">
+                        Tidak ada transaksi pada periode filter ini.
+                      </td>
+                    </tr>
+                  ) : (
+                  detailTransactions.map((transaction) => (
                     <tr key={transaction.id} className="border-b border-gray-100">
                       <td className="py-3 text-sm font-medium text-blue-600">{transaction.id}</td>
                       <td className="py-3 text-sm text-gray-600">{transaction.date}</td>
@@ -324,7 +406,8 @@ export default function FilterPage() {
                         Rp {(transaction.amount / 1000000).toFixed(2)}M
                       </td>
                     </tr>
-                  ))}
+                  ))
+                  )}
                 </tbody>
               </table>
             </div>

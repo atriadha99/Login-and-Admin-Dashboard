@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, AlertTriangle, CheckCircle, Calendar, BarChart3 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 export default function ForecastingPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState({
     historicalData: [],
     forecastData: [],
@@ -14,17 +16,27 @@ export default function ForecastingPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch('/api/forecasting');
+        const token = window.localStorage.getItem('abb-token');
+        if (!token) {
+          toast.error('Sesi tidak valid. Silakan login kembali.');
+          navigate('/');
+          return;
+        }
+        const res = await fetch('/api/forecasting', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (res.ok) {
           const result = await res.json();
           setData(result);
+        } else {
+          throw new Error('Gagal mengambil data forecasting.');
         }
       } catch (error) {
         toast.error('Gagal mengambil data forecasting.');
       }
     };
     fetchData();
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="space-y-6">

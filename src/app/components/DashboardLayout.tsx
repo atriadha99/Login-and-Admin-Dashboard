@@ -9,7 +9,7 @@ export default function DashboardLayout() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [userRole, setUserRole] = useState<'Admin' | 'Pemimpin'>('Admin');
+  const [userRole, setUserRole] = useState<'Admin' | 'Pemimpin' | 'Dispatcher'>('Admin');
   const [profile, setProfile] = useState({
     name: 'Admin User',
     role: 'Administrator',
@@ -67,12 +67,12 @@ export default function DashboardLayout() {
 
     const savedRole = window.localStorage.getItem('abb-role');
     const savedName = window.localStorage.getItem('abb-user');
-    if (savedRole === 'Pemimpin' || savedRole === 'Admin') {
+    if (savedRole === 'Pemimpin' || savedRole === 'Admin' || savedRole === 'Dispatcher') {
       setUserRole(savedRole);
       setProfile((prev) => ({
         ...prev,
-        name: savedName || (savedRole === 'Pemimpin' ? 'Pemimpin' : 'Admin User'),
-        role: savedRole === 'Pemimpin' ? 'Pemimpin' : 'Administrator',
+        name: savedName || savedRole,
+        role: savedRole === 'Pemimpin' ? 'Pemimpin' : savedRole === 'Dispatcher' ? 'Dispatcher' : 'Administrator',
       }));
     }
   }, []);
@@ -118,7 +118,7 @@ export default function DashboardLayout() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4">
           <div className="mb-6">
-            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>Menu {userRole === 'Pemimpin' ? 'Pemimpin' : 'Admin'}</p>
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${darkMode ? 'text-slate-400' : 'text-gray-400'}`}>Menu {userRole === 'Pemimpin' ? 'Pemimpin' : userRole === 'Dispatcher' ? 'Dispatcher' : 'Admin'}</p>
             <div className="space-y-1">
               {(userRole === 'Pemimpin' ? pemimpinMenu : adminMenu).map((item) => {
                 const Icon = item.icon;
@@ -175,7 +175,7 @@ export default function DashboardLayout() {
             </div>
           </div>
 
-          {userRole === 'Admin' ? (
+          {userRole !== 'Pemimpin' ? (
             <div>
               <button
                 onClick={() => {
