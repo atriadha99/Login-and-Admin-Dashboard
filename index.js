@@ -381,9 +381,14 @@ app.get('/api/health', async (_req, res) => {
 const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
   const userRole = role || 'Dispatcher';
+  const allowedRoles = ['Admin', 'Pemimpin', 'Dispatcher'];
 
   if (!name || !email || !password) {
     return res.status(400).json({ message: 'Nama, email, dan password wajib diisi.' });
+  }
+
+  if (!allowedRoles.includes(userRole)) {
+    return res.status(400).json({ message: 'Role tidak valid.' });
   }
 
   try {

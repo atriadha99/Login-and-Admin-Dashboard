@@ -60,7 +60,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password, role: 'Dispatcher' })
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password, role })
       });
       
       if (!res.ok) {
@@ -157,10 +157,9 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {isLogin && (
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                Login Sebagai
+                {isLogin ? 'Login Sebagai' : 'Daftar Sebagai'}
               </label>
               <select
                 id="role"
@@ -173,13 +172,6 @@ export default function LoginPage() {
                 <option value="Dispatcher">Dispatcher</option>
               </select>
             </div>
-            )}
-
-            {!isLogin && (
-              <p className="text-sm text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
-                Akun baru otomatis terdaftar sebagai <strong>Dispatcher</strong>.
-              </p>
-            )}
 
             <button
               type="submit"
