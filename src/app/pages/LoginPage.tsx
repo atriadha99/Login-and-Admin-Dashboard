@@ -210,7 +210,10 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Hero Area */}
-      <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-blue-600 to-blue-800 items-center justify-center p-12">
+      <div
+        className="hidden lg:flex lg:w-1/2 items-center justify-center p-12"
+        style={{ background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%)' }}
+      >
         <div className="text-white max-w-lg">
           <h2 className="text-5xl font-bold mb-6">Welcome Back</h2>
           <p className="text-xl text-blue-100 mb-8">
